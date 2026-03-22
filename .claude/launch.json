@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "stewardly-static",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "Y:\\MBGLH1~V\\SD3W9F~E\\_PHJLS~R\\start-server.bat"],
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}

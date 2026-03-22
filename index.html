@@ -1,0 +1,1605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stewardly — HOA Management, Simplified</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── Reset & Base ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy:      #0C1F3F;
+      --navy-mid:  #132D5E;
+      --teal:      #0D9E8A;
+      --teal-light:#12C4AC;
+      --teal-pale: #E6F9F7;
+      --gold:      #F5A623;
+      --white:     #FFFFFF;
+      --gray-50:   #F8FAFC;
+      --gray-100:  #F1F5F9;
+      --gray-200:  #E2E8F0;
+      --gray-400:  #94A3B8;
+      --gray-600:  #475569;
+      --gray-800:  #1E293B;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --shadow-sm: 0 1px 4px rgba(0,0,0,.08);
+      --shadow-md: 0 4px 20px rgba(0,0,0,.10);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,.14);
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', sans-serif;
+      color: var(--gray-800);
+      background: var(--white);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { text-decoration: none; color: inherit; }
+    img { display: block; max-width: 100%; }
+
+    /* ─── Utility ─── */
+    .container { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+    .section { padding: 96px 0; }
+    .section-sm { padding: 64px 0; }
+    .label {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 12px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--teal);
+      background: var(--teal-pale); border-radius: 100px;
+      padding: 6px 14px; margin-bottom: 16px;
+    }
+    .label svg { width: 14px; height: 14px; }
+    h1,h2,h3,h4 { line-height: 1.2; font-weight: 800; }
+    h1 { font-size: clamp(2.4rem, 5vw, 3.6rem); color: var(--white); }
+    h2 { font-size: clamp(1.8rem, 3.5vw, 2.6rem); color: var(--navy); }
+    h3 { font-size: 1.15rem; color: var(--navy); font-weight: 700; }
+    p.lead { font-size: 1.1rem; color: var(--gray-600); line-height: 1.75; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 28px; border-radius: var(--radius-sm);
+      font-size: .95rem; font-weight: 600; cursor: pointer;
+      border: none; transition: all .2s ease;
+    }
+    .btn-primary {
+      background: var(--teal); color: var(--white);
+      box-shadow: 0 4px 14px rgba(13,158,138,.35);
+    }
+    .btn-primary:hover { background: var(--teal-light); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(13,158,138,.45); }
+    .btn-outline {
+      background: transparent; color: var(--white);
+      border: 2px solid rgba(255,255,255,.5);
+    }
+    .btn-outline:hover { border-color: var(--white); background: rgba(255,255,255,.08); }
+    .btn-dark {
+      background: var(--navy); color: var(--white);
+    }
+    .btn-dark:hover { background: var(--navy-mid); transform: translateY(-1px); }
+
+    .tag {
+      display: inline-block; padding: 4px 12px; border-radius: 100px;
+      font-size: .78rem; font-weight: 600;
+    }
+    .tag-teal { background: var(--teal-pale); color: var(--teal); }
+    .tag-gold { background: #FFF8EE; color: var(--gold); }
+
+    /* ─── Navbar ─── */
+    .navbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 0 24px;
+      transition: background .3s, box-shadow .3s;
+    }
+    .navbar.scrolled {
+      background: rgba(12, 31, 63, .97);
+      box-shadow: 0 2px 20px rgba(0,0,0,.25);
+    }
+    .nav-inner {
+      max-width: 1140px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 70px;
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 1.35rem; font-weight: 800; color: var(--white);
+    }
+    .nav-logo .logo-mark {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: var(--teal);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .nav-logo .logo-mark svg { width: 20px; height: 20px; fill: white; }
+    .nav-links {
+      display: flex; gap: 32px; list-style: none;
+    }
+    .nav-links a {
+      font-size: .9rem; font-weight: 500;
+      color: rgba(255,255,255,.8);
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--white); }
+    .nav-cta { display: flex; align-items: center; gap: 12px; }
+    .nav-cta .btn-ghost {
+      font-size: .9rem; font-weight: 500; color: rgba(255,255,255,.8);
+      background: transparent; border: none; cursor: pointer;
+      transition: color .2s;
+    }
+    .nav-cta .btn-ghost:hover { color: var(--white); }
+    .nav-cta .btn { padding: 10px 22px; font-size: .88rem; }
+
+    /* ─── Hero ─── */
+    .hero {
+      background: linear-gradient(135deg, var(--navy) 0%, #0D3060 50%, #0A4A6E 100%);
+      padding: 160px 0 100px;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .hero-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      align-items: center; gap: 60px;
+      position: relative; z-index: 1;
+    }
+    .hero-content .label { color: var(--teal-light); background: rgba(13,158,138,.15); }
+    .hero-content h1 { margin-bottom: 20px; }
+    .hero-content h1 span { color: var(--teal-light); }
+    .hero-content p { color: rgba(255,255,255,.75); font-size: 1.1rem; margin-bottom: 36px; line-height: 1.75; }
+    .hero-ctas { display: flex; gap: 14px; flex-wrap: wrap; }
+    .hero-stats {
+      display: flex; gap: 32px; margin-top: 48px;
+      padding-top: 36px; border-top: 1px solid rgba(255,255,255,.12);
+    }
+    .hero-stat { }
+    .hero-stat .number { font-size: 1.8rem; font-weight: 800; color: var(--white); }
+    .hero-stat .text { font-size: .82rem; color: rgba(255,255,255,.55); margin-top: 2px; }
+
+    /* Dashboard mockup */
+    .hero-visual { position: relative; }
+    .dashboard-card {
+      background: var(--white); border-radius: var(--radius-lg);
+      box-shadow: 0 30px 80px rgba(0,0,0,.35);
+      overflow: hidden;
+    }
+    .dash-topbar {
+      background: var(--navy); padding: 14px 20px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .dash-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dash-dot.red { background: #FF5F57; }
+    .dash-dot.yellow { background: #FFBD2E; }
+    .dash-dot.green { background: #28C840; }
+    .dash-title { font-size: .78rem; font-weight: 600; color: rgba(255,255,255,.5); margin-left: 8px; }
+    .dash-body { padding: 20px; background: var(--gray-50); }
+    .dash-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+    .dash-metric {
+      background: var(--white); border-radius: var(--radius-sm);
+      padding: 12px 14px; box-shadow: var(--shadow-sm);
+    }
+    .dash-metric .dm-label { font-size: .7rem; color: var(--gray-400); font-weight: 500; text-transform: uppercase; letter-spacing: .05em; }
+    .dash-metric .dm-value { font-size: 1.25rem; font-weight: 800; color: var(--navy); margin-top: 4px; }
+    .dash-metric .dm-sub { font-size: .7rem; margin-top: 3px; }
+    .dash-metric .up { color: var(--teal); }
+    .dash-metric .down { color: #EF4444; }
+    .dash-panel {
+      background: var(--white); border-radius: var(--radius-sm);
+      padding: 14px; box-shadow: var(--shadow-sm); margin-bottom: 10px;
+    }
+    .dash-panel-title { font-size: .78rem; font-weight: 700; color: var(--navy); margin-bottom: 10px; }
+    .task-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 0; border-bottom: 1px solid var(--gray-100);
+    }
+    .task-item:last-child { border-bottom: none; }
+    .task-check { width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0; }
+    .task-check.done { background: var(--teal); }
+    .task-check.todo { background: var(--gray-200); }
+    .task-text { font-size: .75rem; color: var(--gray-600); }
+    .task-text.done { text-decoration: line-through; color: var(--gray-400); }
+    .budget-bar { margin-top: 6px; }
+    .budget-label { display: flex; justify-content: space-between; font-size: .7rem; color: var(--gray-600); margin-bottom: 4px; }
+    .budget-track { height: 6px; background: var(--gray-100); border-radius: 3px; overflow: hidden; }
+    .budget-fill { height: 100%; border-radius: 3px; }
+
+    /* Floating badges */
+    .hero-badge {
+      position: absolute;
+      background: var(--white); border-radius: var(--radius-md);
+      padding: 10px 14px; box-shadow: var(--shadow-lg);
+      display: flex; align-items: center; gap: 10px;
+      animation: float 4s ease-in-out infinite;
+    }
+    .hero-badge.badge-1 { top: -16px; right: -20px; animation-delay: 0s; }
+    .hero-badge.badge-2 { bottom: 40px; left: -24px; animation-delay: 2s; }
+    .badge-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .badge-icon.teal { background: var(--teal-pale); }
+    .badge-icon.gold { background: #FFF8EE; }
+    .badge-icon svg { width: 16px; height: 16px; }
+    .badge-text .bt-title { font-size: .78rem; font-weight: 700; color: var(--navy); }
+    .badge-text .bt-sub { font-size: .68rem; color: var(--gray-400); }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes float {
+      0%,100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    /* ─── Logos / Trust ─── */
+    .trust { background: var(--navy); padding: 28px 0; }
+    .trust-inner {
+      display: flex; align-items: center; gap: 32px;
+      justify-content: center; flex-wrap: wrap;
+    }
+    .trust-label { font-size: .8rem; color: rgba(255,255,255,.35); font-weight: 500; white-space: nowrap; }
+    .trust-logos { display: flex; align-items: center; gap: 36px; flex-wrap: wrap; justify-content: center; }
+    .trust-logo { font-size: .9rem; font-weight: 700; color: rgba(255,255,255,.25); letter-spacing: .02em; }
+
+    /* ─── Solutions ─── */
+    .solutions { background: var(--white); }
+    .section-header { text-align: center; max-width: 640px; margin: 0 auto 60px; }
+    .section-header h2 { margin-bottom: 16px; }
+    .solutions-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .solution-card {
+      background: var(--white); border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md); padding: 30px;
+      transition: all .3s ease; cursor: default;
+      position: relative; overflow: hidden;
+    }
+    .solution-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: var(--teal); transform: scaleX(0);
+      transform-origin: left; transition: transform .3s ease;
+    }
+    .solution-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-4px); border-color: transparent; }
+    .solution-card:hover::before { transform: scaleX(1); }
+    .solution-icon {
+      width: 48px; height: 48px; border-radius: var(--radius-sm);
+      background: var(--teal-pale); display: flex; align-items: center;
+      justify-content: center; margin-bottom: 18px;
+    }
+    .solution-icon svg { width: 24px; height: 24px; color: var(--teal); }
+    .solution-card h3 { margin-bottom: 10px; }
+    .solution-card p { font-size: .9rem; color: var(--gray-600); line-height: 1.7; }
+    .solution-card .features-list {
+      list-style: none; margin-top: 16px;
+    }
+    .solution-card .features-list li {
+      font-size: .85rem; color: var(--gray-600); padding: 5px 0;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .solution-card .features-list li::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%;
+      background: var(--teal); flex-shrink: 0;
+    }
+
+    /* ─── Card images (solution cards) ─── */
+    .card-img-wrap {
+      margin: -30px -30px 22px;
+      height: 162px;
+      overflow: hidden;
+      position: relative;
+    }
+    .card-img-wrap img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+      transition: transform .5s ease;
+    }
+    .solution-card:hover .card-img-wrap img { transform: scale(1.06); }
+    .card-img-wrap::after {
+      content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+      height: 40%; background: linear-gradient(to top, rgba(255,255,255,.9), transparent);
+    }
+
+    /* ─── Hero people photo ─── */
+    .hero-people-photo {
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      overflow: hidden; height: 210px; position: relative;
+      margin-bottom: -2px;
+    }
+    .hero-people-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .hero-people-photo::after {
+      content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 50%;
+      background: linear-gradient(to top, rgba(12,31,63,.6), transparent);
+    }
+
+    /* ─── How-it-works team photo ─── */
+    .how-team-photo {
+      margin: -30px -30px 20px;
+      height: 200px; position: relative; overflow: hidden;
+    }
+    .how-team-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .how-team-photo::after {
+      content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 55%;
+      background: linear-gradient(to top, var(--navy), transparent);
+    }
+    .how-photo-caption {
+      position: absolute; bottom: 12px; left: 16px; z-index: 1;
+      font-size: .72rem; font-weight: 600; color: rgba(255,255,255,.7);
+      letter-spacing: .04em; text-transform: uppercase;
+    }
+
+    /* ─── Homeowner portal photo ─── */
+    .df-portal-photo {
+      border-radius: var(--radius-md); overflow: hidden;
+      height: 200px; margin-bottom: 28px; box-shadow: var(--shadow-md);
+      position: relative;
+    }
+    .df-portal-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    /* ─── How it works ─── */
+    .how { background: var(--gray-50); }
+    .how-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      align-items: center; gap: 80px;
+    }
+    .how-steps { }
+    .how-step {
+      display: flex; gap: 20px; padding: 24px 0;
+      border-bottom: 1px solid var(--gray-200);
+      transition: all .3s;
+    }
+    .how-step:last-child { border-bottom: none; }
+    .step-number {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--teal-pale); display: flex; align-items: center;
+      justify-content: center; font-size: .9rem; font-weight: 800;
+      color: var(--teal); flex-shrink: 0; margin-top: 2px;
+    }
+    .step-content h3 { margin-bottom: 6px; }
+    .step-content p { font-size: .9rem; color: var(--gray-600); line-height: 1.65; }
+
+    .how-visual {
+      background: var(--navy); border-radius: var(--radius-lg);
+      padding: 30px; position: relative; overflow: hidden;
+    }
+    .how-visual::before {
+      content: ''; position: absolute; top: -60px; right: -60px;
+      width: 200px; height: 200px; border-radius: 50%;
+      background: rgba(13,158,138,.1);
+    }
+    .mini-panel {
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+      border-radius: var(--radius-sm); padding: 16px; margin-bottom: 12px;
+    }
+    .mini-panel:last-child { margin-bottom: 0; }
+    .mp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .mp-title { font-size: .78rem; font-weight: 700; color: rgba(255,255,255,.8); }
+    .mp-badge {
+      font-size: .65rem; font-weight: 700; padding: 3px 8px; border-radius: 100px;
+    }
+    .mp-badge.active { background: rgba(13,158,138,.25); color: var(--teal-light); }
+    .mp-badge.new { background: rgba(245,166,35,.2); color: var(--gold); }
+    .mp-item { font-size: .73rem; color: rgba(255,255,255,.5); padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+    .mp-item:last-child { border-bottom: none; }
+    .mp-item strong { color: rgba(255,255,255,.8); font-weight: 600; }
+    .mp-progress { margin-top: 8px; }
+    .mp-progress-bar { height: 5px; background: rgba(255,255,255,.1); border-radius: 3px; overflow: hidden; }
+    .mp-progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--teal), var(--teal-light)); }
+
+    /* ─── Dashboard Feature ─── */
+    .dashboard-feature { background: var(--white); }
+    .df-grid {
+      display: grid; grid-template-columns: 1fr 1.2fr;
+      align-items: center; gap: 80px;
+    }
+    .df-content .label { }
+    .df-content h2 { margin-bottom: 18px; }
+    .df-content p { margin-bottom: 28px; }
+    .df-features { display: flex; flex-direction: column; gap: 18px; }
+    .df-feature {
+      display: flex; gap: 16px; align-items: flex-start;
+    }
+    .df-feature-icon {
+      width: 40px; height: 40px; border-radius: var(--radius-sm);
+      background: var(--teal-pale); display: flex; align-items: center;
+      justify-content: center; flex-shrink: 0;
+    }
+    .df-feature-icon svg { width: 20px; height: 20px; color: var(--teal); }
+    .df-feature-text h4 { font-size: .95rem; font-weight: 700; margin-bottom: 4px; }
+    .df-feature-text p { font-size: .85rem; color: var(--gray-600); margin: 0; }
+
+    .df-visual {
+      background: var(--navy-mid); border-radius: var(--radius-lg);
+      padding: 24px; box-shadow: var(--shadow-lg);
+    }
+    .df-chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .df-chart-title { font-size: .85rem; font-weight: 700; color: var(--white); }
+    .df-chart-legend { display: flex; gap: 14px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: .72rem; color: rgba(255,255,255,.55); }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    .chart-bars {
+      display: flex; align-items: flex-end; gap: 8px; height: 100px;
+      margin-bottom: 8px;
+    }
+    .chart-bar-group { flex: 1; display: flex; gap: 3px; align-items: flex-end; }
+    .chart-bar { flex: 1; border-radius: 3px 3px 0 0; min-height: 4px; }
+    .chart-labels { display: flex; gap: 8px; }
+    .chart-label-group { flex: 1; text-align: center; font-size: .65rem; color: rgba(255,255,255,.35); }
+
+    .df-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+    .df-card {
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+      border-radius: var(--radius-sm); padding: 12px;
+    }
+    .df-card-label { font-size: .68rem; color: rgba(255,255,255,.45); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+    .df-card-value { font-size: 1.3rem; font-weight: 800; color: var(--white); margin-top: 4px; }
+    .df-card-trend { font-size: .72rem; margin-top: 3px; }
+    .df-card-trend.up { color: var(--teal-light); }
+    .df-card-trend.down { color: #EF4444; }
+
+    /* ─── Pricing ─── */
+    .pricing { background: var(--gray-50); }
+    .pricing-toggle {
+      display: flex; align-items: center; justify-content: center;
+      gap: 14px; margin-bottom: 52px;
+    }
+    .toggle-label { font-size: .9rem; font-weight: 500; color: var(--gray-600); }
+    .toggle-switch {
+      width: 52px; height: 28px; background: var(--teal);
+      border-radius: 14px; position: relative; cursor: pointer;
+      transition: background .2s;
+    }
+    .toggle-switch::after {
+      content: ''; position: absolute; top: 3px; left: 3px;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--white); transition: transform .2s;
+    }
+    .toggle-active { background: var(--teal); }
+    .badge-save {
+      background: var(--gold); color: var(--white);
+      font-size: .72rem; font-weight: 700; padding: 3px 8px; border-radius: 100px;
+    }
+
+    .pricing-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 24px; align-items: start;
+    }
+    .pricing-card {
+      background: var(--white); border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md); padding: 32px;
+      position: relative; transition: all .3s;
+    }
+    .pricing-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-4px); }
+    .pricing-card.featured {
+      background: var(--navy); border-color: var(--navy);
+      transform: scale(1.04);
+    }
+    .pricing-card.featured:hover { transform: scale(1.04) translateY(-4px); }
+    .featured-badge {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--teal); color: var(--white);
+      font-size: .72rem; font-weight: 700; padding: 4px 14px; border-radius: 100px;
+    }
+    .plan-name { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
+    .plan-name.light { color: var(--teal); }
+    .plan-name.dark { color: var(--teal-light); }
+    .plan-price { margin-bottom: 6px; }
+    .plan-price .amount {
+      font-size: 2.8rem; font-weight: 800; line-height: 1;
+    }
+    .plan-price .amount.light { color: var(--navy); }
+    .plan-price .amount.dark { color: var(--white); }
+    .plan-price .period { font-size: .85rem; color: var(--gray-400); margin-left: 4px; }
+    .plan-price .period.dark { color: rgba(255,255,255,.45); }
+    .plan-desc { font-size: .85rem; margin-bottom: 24px; }
+    .plan-desc.light { color: var(--gray-600); }
+    .plan-desc.dark { color: rgba(255,255,255,.65); }
+    .plan-divider { height: 1px; margin-bottom: 24px; }
+    .plan-divider.light { background: var(--gray-200); }
+    .plan-divider.dark { background: rgba(255,255,255,.12); }
+    .plan-features { list-style: none; margin-bottom: 28px; }
+    .plan-features li {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: .87rem; padding: 7px 0;
+    }
+    .plan-features li.light { color: var(--gray-700); }
+    .plan-features li.dark { color: rgba(255,255,255,.8); }
+    .plan-features .check {
+      width: 18px; height: 18px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+    }
+    .plan-features .check.teal { background: var(--teal-pale); }
+    .plan-features .check.white { background: rgba(13,158,138,.25); }
+    .plan-features .check svg { width: 10px; height: 10px; }
+    .plan-cta { display: block; text-align: center; width: 100%; }
+    .btn-plan-light { background: var(--navy); color: var(--white); border: none; }
+    .btn-plan-light:hover { background: var(--navy-mid); }
+    .btn-plan-dark { background: var(--teal); color: var(--white); border: none; box-shadow: 0 4px 14px rgba(13,158,138,.4); }
+    .btn-plan-dark:hover { background: var(--teal-light); }
+
+    /* ─── Testimonials ─── */
+    .testimonials { background: var(--white); }
+    .testimonials-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .testimonial-card {
+      background: var(--gray-50); border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md); padding: 28px;
+      transition: all .3s;
+    }
+    .testimonial-card:hover { box-shadow: var(--shadow-md); background: var(--white); }
+    .stars { display: flex; gap: 3px; margin-bottom: 14px; }
+    .star { color: var(--gold); font-size: 14px; }
+    .testimonial-text { font-size: .9rem; color: var(--gray-600); line-height: 1.75; margin-bottom: 20px; font-style: italic; }
+    .testimonial-author { display: flex; align-items: center; gap: 12px; }
+    .author-avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: .85rem; color: var(--white); flex-shrink: 0;
+    }
+    .author-name { font-size: .87rem; font-weight: 700; color: var(--navy); }
+    .author-role { font-size: .78rem; color: var(--gray-400); }
+
+    /* ─── CTA Banner ─── */
+    .cta-banner {
+      background: linear-gradient(135deg, var(--navy) 0%, #0A4A6E 100%);
+      padding: 80px 0;
+    }
+    .cta-inner { text-align: center; }
+    .cta-inner h2 { color: var(--white); margin-bottom: 16px; }
+    .cta-inner p { color: rgba(255,255,255,.7); font-size: 1.05rem; margin-bottom: 36px; }
+    .cta-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+    /* ─── Contact ─── */
+    .contact { background: var(--gray-50); }
+    .contact-grid {
+      display: grid; grid-template-columns: 1fr 1.4fr;
+      gap: 80px; align-items: start;
+    }
+    .contact-info h2 { margin-bottom: 14px; }
+    .contact-info p { margin-bottom: 32px; }
+    .contact-detail {
+      display: flex; align-items: flex-start; gap: 14px; margin-bottom: 22px;
+    }
+    .contact-detail-icon {
+      width: 40px; height: 40px; border-radius: var(--radius-sm);
+      background: var(--teal-pale); display: flex; align-items: center;
+      justify-content: center; flex-shrink: 0;
+    }
+    .contact-detail-icon svg { width: 18px; height: 18px; color: var(--teal); }
+    .contact-detail-text strong { display: block; font-size: .9rem; color: var(--navy); margin-bottom: 2px; }
+    .contact-detail-text span { font-size: .85rem; color: var(--gray-600); }
+
+    .contact-form-wrap {
+      background: var(--white); border: 1px solid var(--gray-200);
+      border-radius: var(--radius-lg); padding: 40px;
+      box-shadow: var(--shadow-md);
+    }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+    .form-group label { font-size: .82rem; font-weight: 600; color: var(--navy); }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      padding: 11px 14px; border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius-sm); font-size: .9rem;
+      font-family: inherit; color: var(--gray-800);
+      background: var(--white); transition: border-color .2s, box-shadow .2s;
+      outline: none;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(13,158,138,.12);
+    }
+    .form-group input::placeholder,
+    .form-group textarea::placeholder { color: var(--gray-400); }
+    .form-group textarea { resize: vertical; min-height: 110px; }
+    .form-group select { appearance: none; cursor: pointer; }
+    .form-submit { width: 100%; padding: 14px; font-size: .97rem; }
+    .form-note { font-size: .78rem; color: var(--gray-400); text-align: center; margin-top: 14px; }
+
+    /* Success state */
+    .form-success {
+      display: none; text-align: center; padding: 40px 20px;
+    }
+    .form-success .success-icon {
+      width: 60px; height: 60px; background: var(--teal-pale);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 18px;
+    }
+    .form-success .success-icon svg { width: 28px; height: 28px; color: var(--teal); }
+    .form-success h3 { color: var(--navy); margin-bottom: 10px; }
+    .form-success p { font-size: .9rem; color: var(--gray-600); }
+
+    @media (max-width: 1024px) {
+      .contact-grid { grid-template-columns: 1fr; gap: 48px; }
+    }
+    @media (max-width: 640px) {
+      .form-row { grid-template-columns: 1fr; }
+      .contact-form-wrap { padding: 28px 20px; }
+    }
+
+    /* ─── Footer ─── */
+    .footer { background: #080F1F; padding: 64px 0 32px; }
+    .footer-grid {
+      display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 48px; margin-bottom: 48px;
+    }
+    .footer-brand .nav-logo { margin-bottom: 16px; }
+    .footer-brand p { font-size: .88rem; color: rgba(255,255,255,.4); line-height: 1.75; max-width: 280px; }
+    .footer-col h4 { font-size: .82rem; font-weight: 700; color: rgba(255,255,255,.6); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 16px; }
+    .footer-col ul { list-style: none; }
+    .footer-col ul li { margin-bottom: 10px; }
+    .footer-col ul li a { font-size: .87rem; color: rgba(255,255,255,.4); transition: color .2s; }
+    .footer-col ul li a:hover { color: rgba(255,255,255,.9); }
+    .footer-bottom {
+      border-top: 1px solid rgba(255,255,255,.07); padding-top: 28px;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 12px;
+    }
+    .footer-bottom p { font-size: .82rem; color: rgba(255,255,255,.3); }
+    .footer-links { display: flex; gap: 24px; }
+    .footer-links a { font-size: .82rem; color: rgba(255,255,255,.3); transition: color .2s; }
+    .footer-links a:hover { color: rgba(255,255,255,.7); }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 1024px) {
+      .hero-grid { grid-template-columns: 1fr; }
+      .hero-visual { display: none; }
+      .solutions-grid { grid-template-columns: repeat(2, 1fr); }
+      .how-grid { grid-template-columns: 1fr; }
+      .how-visual { order: -1; }
+      .df-grid { grid-template-columns: 1fr; }
+      .df-visual { display: none; }
+      .pricing-grid { grid-template-columns: 1fr; max-width: 480px; margin: 0 auto; }
+      .pricing-card.featured { transform: none; }
+      .testimonials-grid { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 768px) {
+      .section { padding: 64px 0; }
+      .nav-links { display: none; }
+      .solutions-grid { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── NAVBAR ─── -->
+<nav class="navbar" id="navbar">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 9.5L12 3l9 6.5V21H3V9.5z" fill="none" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M9 21v-6h6v6" fill="none" stroke="white" stroke-width="1.8" stroke-linejoin="round"/>
+          <circle cx="12" cy="10" r="2" fill="white"/>
+        </svg>
+      </div>
+      Stewardly
+    </a>
+    <ul class="nav-links">
+      <li><a href="#solutions">Solutions</a></li>
+      <li><a href="#how-it-works">How it works</a></li>
+      <li><a href="#dashboard">Dashboard</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+    <div class="nav-cta">
+      <button class="btn-ghost">Sign in</button>
+      <a href="#pricing" class="btn btn-primary">Start Free Trial</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ─── HERO ─── -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-grid">
+      <div class="hero-content">
+        <div class="label">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          HOA Management Platform
+        </div>
+        <h1>Run your HOA <span>smarter</span>, not harder.</h1>
+        <p>Stewardly gives every board member the tools they need — from task tracking and meeting minutes to financial dashboards and community messaging — all in one place.</p>
+        <div class="hero-ctas">
+          <a href="#pricing" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            Start Free Trial
+          </a>
+          <a href="#solutions" class="btn btn-outline">See all features</a>
+        </div>
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <div class="number">500+</div>
+            <div class="text">HOAs managed</div>
+          </div>
+          <div class="hero-stat">
+            <div class="number">98%</div>
+            <div class="text">Board satisfaction</div>
+          </div>
+          <div class="hero-stat">
+            <div class="number">4.9★</div>
+            <div class="text">Average rating</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="hero-people-photo">
+          <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=80"
+               alt="Diverse HOA board members collaborating around a table with laptops" />
+        </div>
+        <div class="dashboard-card">
+          <div class="dash-topbar">
+            <div class="dash-dot red"></div>
+            <div class="dash-dot yellow"></div>
+            <div class="dash-dot green"></div>
+            <span class="dash-title">Stewardly — Maple Ridge HOA</span>
+          </div>
+          <div class="dash-body">
+            <div class="dash-row">
+              <div class="dash-metric">
+                <div class="dm-label">Monthly Dues</div>
+                <div class="dm-value">$48,200</div>
+                <div class="dm-sub up">↑ 100% collected</div>
+              </div>
+              <div class="dash-metric">
+                <div class="dm-label">Reserve Fund</div>
+                <div class="dm-value">$182k</div>
+                <div class="dm-sub up">↑ On target</div>
+              </div>
+              <div class="dash-metric">
+                <div class="dm-label">Open Tasks</div>
+                <div class="dm-value">7</div>
+                <div class="dm-sub down">3 overdue</div>
+              </div>
+            </div>
+            <div class="dash-panel">
+              <div class="dash-panel-title">Active Tasks</div>
+              <div class="task-item">
+                <div class="task-check done"></div>
+                <span class="task-text done">Renew landscaping contract</span>
+              </div>
+              <div class="task-item">
+                <div class="task-check done"></div>
+                <span class="task-text done">Post Q3 financial report</span>
+              </div>
+              <div class="task-item">
+                <div class="task-check todo"></div>
+                <span class="task-text">Schedule annual inspection</span>
+              </div>
+              <div class="task-item">
+                <div class="task-check todo"></div>
+                <span class="task-text">Review pool repair bids</span>
+              </div>
+            </div>
+            <div class="dash-panel">
+              <div class="dash-panel-title">Budget Utilization</div>
+              <div class="budget-bar">
+                <div class="budget-label"><span>Operations</span><span>72%</span></div>
+                <div class="budget-track"><div class="budget-fill" style="width:72%;background:var(--teal);"></div></div>
+              </div>
+              <div class="budget-bar" style="margin-top:8px">
+                <div class="budget-label"><span>Maintenance</span><span>88%</span></div>
+                <div class="budget-track"><div class="budget-fill" style="width:88%;background:var(--gold);"></div></div>
+              </div>
+              <div class="budget-bar" style="margin-top:8px">
+                <div class="budget-label"><span>Capital Projects</span><span>41%</span></div>
+                <div class="budget-track"><div class="budget-fill" style="width:41%;background:#6366F1;"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-badge badge-1">
+          <div class="badge-icon teal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#0D9E8A" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="badge-text">
+            <div class="bt-title">Dues collected</div>
+            <div class="bt-sub">100% this month</div>
+          </div>
+        </div>
+        <div class="hero-badge badge-2">
+          <div class="badge-icon gold">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+          </div>
+          <div class="badge-text">
+            <div class="bt-title">Reserve trending up</div>
+            <div class="bt-sub">+12% vs last year</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── TRUST BAR ─── -->
+<div class="trust">
+  <div class="container">
+    <div class="trust-inner">
+      <span class="trust-label">Trusted by communities across the country</span>
+      <div class="trust-logos">
+        <span class="trust-logo">OAKWOOD ESTATES</span>
+        <span class="trust-logo">RIVER BEND HOA</span>
+        <span class="trust-logo">SUMMIT RIDGE</span>
+        <span class="trust-logo">LAKESIDE COMMONS</span>
+        <span class="trust-logo">THE PINES</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SOLUTIONS ─── -->
+<section class="section solutions" id="solutions">
+  <div class="container">
+    <div class="section-header">
+      <div class="label">Solutions</div>
+      <h2>Everything your board needs to lead with confidence</h2>
+      <p class="lead">Stewardly brings every critical function into a single, easy-to-use platform designed for HOA boards of every size.</p>
+    </div>
+    <div class="solutions-grid">
+
+      <div class="solution-card">
+        <div class="card-img-wrap">
+          <img src="https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?auto=format&fit=crop&w=700&q=80"
+               alt="Organized task list and planning notebook" loading="lazy" />
+        </div>
+        <div class="solution-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15 14"/></svg>
+        </div>
+        <span class="tag tag-teal" style="margin-bottom:10px">Board Tools</span>
+        <h3>Task Tracker</h3>
+        <p>Assign, track, and close action items across your entire board. Never let a task fall through the cracks again.</p>
+        <ul class="features-list">
+          <li>Assign tasks to board members</li>
+          <li>Due date reminders & escalations</li>
+          <li>Priority levels & category tags</li>
+          <li>Completion history &amp; audit trail</li>
+        </ul>
+      </div>
+
+      <div class="solution-card">
+        <div class="card-img-wrap">
+          <img src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=700&q=80"
+               alt="Board members in a meeting taking notes" loading="lazy" />
+        </div>
+        <div class="solution-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
+        <span class="tag tag-teal" style="margin-bottom:10px">Meetings</span>
+        <h3>Meeting Notes & Action Items</h3>
+        <p>Capture structured minutes, vote records, and action items during every board meeting — and share them instantly with residents.</p>
+        <ul class="features-list">
+          <li>Templated agenda builder</li>
+          <li>Auto-generated action items</li>
+          <li>Vote recording & tracking</li>
+          <li>One-click homeowner distribution</li>
+        </ul>
+      </div>
+
+      <div class="solution-card">
+        <div class="card-img-wrap">
+          <img src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=700&q=80"
+               alt="Financial spreadsheets and budget reports on a desk" loading="lazy" />
+        </div>
+        <div class="solution-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        </div>
+        <span class="tag tag-teal" style="margin-bottom:10px">Finance</span>
+        <h3>Financial Management</h3>
+        <p>Connect your bank accounts, track income and expenses in real time, and produce reports that make your next audit a breeze.</p>
+        <ul class="features-list">
+          <li>Bank & institution sync</li>
+          <li>Budget vs. actuals tracking</li>
+          <li>Reserve fund planning</li>
+          <li>One-click financial reports</li>
+        </ul>
+      </div>
+
+      <div class="solution-card">
+        <div class="card-img-wrap">
+          <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=700&q=80"
+               alt="Analytics dashboard with financial charts on a screen" loading="lazy" />
+        </div>
+        <div class="solution-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <span class="tag tag-gold" style="margin-bottom:10px">Homeowner Portal</span>
+        <h3>Health Dashboard</h3>
+        <p>Give every homeowner a transparent view of the community's financial health — no more mystery around where the money goes.</p>
+        <ul class="features-list">
+          <li>Assessment dues & payment status</li>
+          <li>Upcoming projects & timelines</li>
+          <li>Current budget & expense trends</li>
+          <li>Reserve fund health indicator</li>
+        </ul>
+      </div>
+
+      <div class="solution-card">
+        <div class="card-img-wrap">
+          <img src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=700&q=80"
+               alt="Neighbors and community members connecting and communicating" loading="lazy" />
+        </div>
+        <div class="solution-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        </div>
+        <span class="tag tag-gold" style="margin-bottom:10px">Community</span>
+        <h3>Message Boards</h3>
+        <p>Keep the whole community informed and connected with organized discussion boards, announcements, and direct messaging.</p>
+        <ul class="features-list">
+          <li>Topic-based discussion boards</li>
+          <li>Board announcement channel</li>
+          <li>Direct resident messaging</li>
+          <li>File & photo sharing</li>
+        </ul>
+      </div>
+
+      <div class="solution-card">
+        <div class="card-img-wrap">
+          <img src="https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=700&q=80"
+               alt="Property management paperwork and resident records organized on a desk" loading="lazy" />
+        </div>
+        <div class="solution-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        </div>
+        <span class="tag tag-teal" style="margin-bottom:10px">Administration</span>
+        <h3>Resident & Unit Registry</h3>
+        <p>Maintain a clean, up-to-date registry of owners, tenants, vehicles, and pets — your single source of truth for the community.</p>
+        <ul class="features-list">
+          <li>Owner & tenant profiles</li>
+          <li>Unit ownership history</li>
+          <li>Emergency contact management</li>
+          <li>Move-in / move-out workflows</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ─── HOW IT WORKS ─── -->
+<section class="section how" id="how-it-works">
+  <div class="container">
+    <div class="how-grid">
+      <div class="how-steps">
+        <div class="label">How it works</div>
+        <h2 style="margin-bottom:12px">Up and running in minutes, not months</h2>
+        <p class="lead" style="margin-bottom:40px">Stewardly is purpose-built for HOA boards — no IT team required. If you can use email, you can use Stewardly.</p>
+
+        <div class="how-step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h3>Set up your community</h3>
+            <p>Enter your building details, upload your unit roster, and invite your board members. Your workspace is ready in under 10 minutes.</p>
+          </div>
+        </div>
+        <div class="how-step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h3>Connect your finances</h3>
+            <p>Securely link your association's bank accounts using our encrypted bank connection. Transactions sync automatically every day.</p>
+          </div>
+        </div>
+        <div class="how-step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h3>Invite your homeowners</h3>
+            <p>Send residents a one-click invite to access their personal portal — dues, community updates, and the message board, all in one place.</p>
+          </div>
+        </div>
+        <div class="how-step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <h3>Run your board, effortlessly</h3>
+            <p>Hold your next meeting in Stewardly, assign action items on the spot, and let the platform do the follow-up for you.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="how-visual">
+        <div class="how-team-photo">
+          <img src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&w=900&q=80"
+               alt="Diverse team of board members working together in a modern office" loading="lazy" />
+          <span class="how-photo-caption">Your board, in sync</span>
+        </div>
+        <div class="mini-panel">
+          <div class="mp-header">
+            <span class="mp-title">Board Meeting — March 18</span>
+            <span class="mp-badge active">Completed</span>
+          </div>
+          <div class="mp-item"><strong>Action item:</strong> Review landscaping bids — <strong>Sarah T.</strong></div>
+          <div class="mp-item"><strong>Action item:</strong> Update reserve fund schedule — <strong>Mark R.</strong></div>
+          <div class="mp-item"><strong>Vote:</strong> Approve pool resurfacing — <strong>4–1 Passed</strong></div>
+          <div class="mp-item"><strong>Next meeting:</strong> April 15, 7:00 PM</div>
+        </div>
+
+        <div class="mini-panel">
+          <div class="mp-header">
+            <span class="mp-title">Financial Sync</span>
+            <span class="mp-badge active">Live</span>
+          </div>
+          <div class="mp-item"><strong>First National Bank</strong> — Operating Account ✓</div>
+          <div class="mp-item"><strong>First National Bank</strong> — Reserve Account ✓</div>
+          <div class="mp-item">Last synced: <strong>Today, 6:42 AM</strong></div>
+          <div class="mp-progress">
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+              <span style="font-size:.7rem;color:rgba(255,255,255,.5)">Annual Budget Remaining</span>
+              <span style="font-size:.7rem;color:rgba(255,255,255,.7);font-weight:700">64%</span>
+            </div>
+            <div class="mp-progress-bar"><div class="mp-progress-fill" style="width:64%"></div></div>
+          </div>
+        </div>
+
+        <div class="mini-panel">
+          <div class="mp-header">
+            <span class="mp-title">Community Board</span>
+            <span class="mp-badge new">3 New Posts</span>
+          </div>
+          <div class="mp-item"><strong>Announcement:</strong> Pool closed April 2–9 for resurfacing</div>
+          <div class="mp-item"><strong>Discussion:</strong> Parking policy — 12 replies</div>
+          <div class="mp-item"><strong>Question:</strong> Guest parking permits — 5 replies</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── DASHBOARD FEATURE ─── -->
+<section class="section dashboard-feature" id="dashboard">
+  <div class="container">
+    <div class="df-grid">
+      <div class="df-content">
+        <div class="label">Homeowner Portal</div>
+        <h2>Transparency that builds trust</h2>
+        <p class="lead">Homeowners deserve to know where their dues go. Stewardly's community dashboard gives every resident a clear, real-time picture of the association's finances and projects — no more guesswork.</p>
+        <div class="df-portal-photo">
+          <img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&w=900&q=80"
+               alt="Homeowner reviewing community finances and dues on a laptop at home" loading="lazy" />
+        </div>
+        <div class="df-features">
+          <div class="df-feature">
+            <div class="df-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="df-feature-text">
+              <h4>Assessment dues &amp; payment history</h4>
+              <p>Residents can view their current balance, upcoming due dates, and full payment history in one place.</p>
+            </div>
+          </div>
+          <div class="df-feature">
+            <div class="df-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v18H3zM3 9h18M9 21V9"/></svg>
+            </div>
+            <div class="df-feature-text">
+              <h4>Upcoming projects &amp; budgets</h4>
+              <p>Share approved capital projects with timelines, budgets, and status updates so residents stay informed.</p>
+            </div>
+          </div>
+          <div class="df-feature">
+            <div class="df-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <div class="df-feature-text">
+              <h4>Expense trends &amp; reserve health</h4>
+              <p>Visual charts show year-over-year spending trends and whether the reserve fund is on track with the community's long-range plan.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="df-visual">
+        <div class="df-chart-header">
+          <span class="df-chart-title">Budget vs. Actual Spend</span>
+          <div class="df-chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div>Budget</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--gold)"></div>Actual</div>
+          </div>
+        </div>
+        <div class="chart-bars">
+          <div class="chart-bar-group">
+            <div class="chart-bar" style="height:55px;background:rgba(13,158,138,.3)"></div>
+            <div class="chart-bar" style="height:42px;background:var(--gold)"></div>
+          </div>
+          <div class="chart-bar-group">
+            <div class="chart-bar" style="height:70px;background:rgba(13,158,138,.3)"></div>
+            <div class="chart-bar" style="height:58px;background:var(--gold)"></div>
+          </div>
+          <div class="chart-bar-group">
+            <div class="chart-bar" style="height:60px;background:rgba(13,158,138,.3)"></div>
+            <div class="chart-bar" style="height:75px;background:#EF4444"></div>
+          </div>
+          <div class="chart-bar-group">
+            <div class="chart-bar" style="height:80px;background:rgba(13,158,138,.3)"></div>
+            <div class="chart-bar" style="height:62px;background:var(--gold)"></div>
+          </div>
+          <div class="chart-bar-group">
+            <div class="chart-bar" style="height:65px;background:rgba(13,158,138,.3)"></div>
+            <div class="chart-bar" style="height:50px;background:var(--gold)"></div>
+          </div>
+          <div class="chart-bar-group">
+            <div class="chart-bar" style="height:72px;background:rgba(13,158,138,.3)"></div>
+            <div class="chart-bar" style="height:68px;background:var(--gold)"></div>
+          </div>
+        </div>
+        <div class="chart-labels">
+          <div class="chart-label-group">Oct</div>
+          <div class="chart-label-group">Nov</div>
+          <div class="chart-label-group">Dec</div>
+          <div class="chart-label-group">Jan</div>
+          <div class="chart-label-group">Feb</div>
+          <div class="chart-label-group">Mar</div>
+        </div>
+        <div class="df-cards">
+          <div class="df-card">
+            <div class="df-card-label">Annual Budget</div>
+            <div class="df-card-value">$240,000</div>
+            <div class="df-card-trend up">↑ 5% from last year</div>
+          </div>
+          <div class="df-card">
+            <div class="df-card-label">YTD Spent</div>
+            <div class="df-card-value">$87,420</div>
+            <div class="df-card-trend up">36% utilized</div>
+          </div>
+          <div class="df-card">
+            <div class="df-card-label">Reserve Fund</div>
+            <div class="df-card-value">$182,000</div>
+            <div class="df-card-trend up">↑ On target</div>
+          </div>
+          <div class="df-card">
+            <div class="df-card-label">Dues Collected</div>
+            <div class="df-card-value">100%</div>
+            <div class="df-card-trend up">48 of 48 units</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── PRICING ─── -->
+<section class="section pricing" id="pricing">
+  <div class="container">
+    <div class="section-header">
+      <div class="label">Pricing</div>
+      <h2>Simple, transparent annual pricing</h2>
+      <p class="lead">One subscription covers your entire board and all homeowners — no per-user fees, no hidden charges.</p>
+    </div>
+
+    <div class="pricing-toggle">
+      <span class="toggle-label">Monthly</span>
+      <div class="toggle-switch toggle-active" id="billingToggle"></div>
+      <span class="toggle-label">Annual</span>
+      <span class="badge-save">Save up to 20%</span>
+    </div>
+
+    <div class="pricing-grid">
+      <!-- Starter -->
+      <div class="pricing-card">
+        <div class="plan-name light">Starter</div>
+        <div class="plan-price">
+          <span class="amount light" id="starter-price">$49</span>
+          <span class="period light">/month, billed annually</span>
+        </div>
+        <p class="plan-desc light">Perfect for smaller communities getting started with digital management.</p>
+        <div class="plan-divider light"></div>
+        <ul class="plan-features">
+          <li class="light"><span class="check teal"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Up to 50 units</li>
+          <li class="light"><span class="check teal"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Task tracker</li>
+          <li class="light"><span class="check teal"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Meeting notes</li>
+          <li class="light"><span class="check teal"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Homeowner portal</li>
+          <li class="light"><span class="check teal"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Message boards</li>
+          <li class="light" style="opacity:.4"><span class="check teal"><svg viewBox="0 0 12 12" fill="none" stroke="var(--gray-400)" stroke-width="2.5"><line x1="2" y1="6" x2="10" y2="6"/></svg></span>Bank account sync</li>
+          <li class="light" style="opacity:.4"><span class="check teal"><svg viewBox="0 0 12 12" fill="none" stroke="var(--gray-400)" stroke-width="2.5"><line x1="2" y1="6" x2="10" y2="6"/></svg></span>Financial dashboards</li>
+        </ul>
+        <a href="#" class="btn btn-dark plan-cta btn-plan-light" style="padding:14px">Get started</a>
+      </div>
+
+      <!-- Pro (Featured) -->
+      <div class="pricing-card featured">
+        <div class="featured-badge">Most Popular</div>
+        <div class="plan-name dark">Professional</div>
+        <div class="plan-price">
+          <span class="amount dark" id="pro-price">$99</span>
+          <span class="period dark">/month, billed annually</span>
+        </div>
+        <p class="plan-desc dark">The complete solution for active HOA boards who want full visibility and control.</p>
+        <div class="plan-divider dark"></div>
+        <ul class="plan-features">
+          <li class="dark"><span class="check white"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal-light)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Up to 250 units</li>
+          <li class="dark"><span class="check white"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal-light)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Task tracker</li>
+          <li class="dark"><span class="check white"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal-light)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Meeting notes &amp; action items</li>
+          <li class="dark"><span class="check white"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal-light)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Homeowner portal &amp; dashboards</li>
+          <li class="dark"><span class="check white"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal-light)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Message boards</li>
+          <li class="dark"><span class="check white"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal-light)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Bank account sync</li>
+          <li class="dark"><span class="check white"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal-light)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Full financial dashboards</li>
+        </ul>
+        <a href="#" class="btn plan-cta btn-plan-dark" style="padding:14px">Start free trial</a>
+      </div>
+
+      <!-- Enterprise -->
+      <div class="pricing-card">
+        <div class="plan-name light">Enterprise</div>
+        <div class="plan-price">
+          <span class="amount light" id="enterprise-price">$199</span>
+          <span class="period light">/month, billed annually</span>
+        </div>
+        <p class="plan-desc light">For large communities or management companies overseeing multiple HOAs.</p>
+        <div class="plan-divider light"></div>
+        <ul class="plan-features">
+          <li class="light"><span class="check teal"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Unlimited units</li>
+          <li class="light"><span class="check teal"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Everything in Professional</li>
+          <li class="light"><span class="check teal"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Multi-HOA management</li>
+          <li class="light"><span class="check teal"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Custom branding</li>
+          <li class="light"><span class="check teal"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Priority support &amp; onboarding</li>
+          <li class="light"><span class="check teal"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>Advanced reporting</li>
+          <li class="light"><span class="check teal"><svg viewBox="0 0 12 12" fill="none" stroke="var(--teal)" stroke-width="2.5"><polyline points="2 6 5 9 10 3"/></svg></span>API access</li>
+        </ul>
+        <a href="#" class="btn btn-dark plan-cta btn-plan-light" style="padding:14px">Contact sales</a>
+      </div>
+    </div>
+
+    <p style="text-align:center;margin-top:28px;font-size:.85rem;color:var(--gray-400)">
+      All plans include a <strong>30-day free trial</strong> — no credit card required. Cancel anytime.
+    </p>
+  </div>
+</section>
+
+<!-- ─── TESTIMONIALS ─── -->
+<section class="section testimonials">
+  <div class="container">
+    <div class="section-header">
+      <div class="label">Testimonials</div>
+      <h2>Boards love Stewardly</h2>
+      <p class="lead">Hear from community leaders who transformed the way they manage their HOA.</p>
+    </div>
+    <div class="testimonials-grid">
+
+      <div class="testimonial-card">
+        <div class="stars">★★★★★</div>
+        <p class="testimonial-text">"Before Stewardly, our financial reporting was a nightmare — spreadsheets everywhere, no one agreed on the numbers. Now our entire community can see a live dashboard. It changed everything."</p>
+        <div class="testimonial-author">
+          <div class="author-avatar" style="background:var(--teal)">JM</div>
+          <div>
+            <div class="author-name">Jennifer M.</div>
+            <div class="author-role">Board Treasurer, Oakwood Estates HOA</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="testimonial-card">
+        <div class="stars">★★★★★</div>
+        <p class="testimonial-text">"The meeting notes feature alone was worth the subscription. We used to spend days writing up minutes. Now we do it live during the meeting and residents get them automatically the same night."</p>
+        <div class="testimonial-author">
+          <div class="author-avatar" style="background:var(--navy)">DL</div>
+          <div>
+            <div class="author-name">David L.</div>
+            <div class="author-role">HOA President, River Bend Commons</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="testimonial-card">
+        <div class="stars">★★★★★</div>
+        <p class="testimonial-text">"Our homeowners used to call constantly asking about dues and projects. Now they just log into their portal. Stewardly reduced our board's email volume by 60% in the first month."</p>
+        <div class="testimonial-author">
+          <div class="author-avatar" style="background:var(--gold)">PR</div>
+          <div>
+            <div class="author-name">Patricia R.</div>
+            <div class="author-role">Property Manager, Summit Ridge HOA</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ─── CTA BANNER ─── -->
+<section class="cta-banner">
+  <div class="container">
+    <div class="cta-inner">
+      <div class="label" style="margin:0 auto 16px;color:var(--teal-light);background:rgba(13,158,138,.15)">Get started today</div>
+      <h2>Your community deserves better management tools.</h2>
+      <p>Join hundreds of HOA boards that run smarter with Stewardly. Start your 30-day free trial — no credit card needed.</p>
+      <div class="cta-buttons">
+        <a href="#pricing" class="btn btn-primary" style="padding:16px 32px;font-size:1rem">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          Start Free Trial
+        </a>
+        <a href="#solutions" class="btn btn-outline" style="padding:16px 32px;font-size:1rem">Book a Demo</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── CONTACT ─── -->
+<section class="section contact" id="contact">
+  <div class="container">
+    <div class="contact-grid">
+
+      <div class="contact-info">
+        <div class="label">Contact us</div>
+        <h2>Let's get your HOA on board</h2>
+        <p class="lead">Have questions, want a live demo, or ready to get started? Reach out and our team will get back to you within one business day.</p>
+
+        <div class="contact-detail">
+          <div class="contact-detail-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          </div>
+          <div class="contact-detail-text">
+            <strong>Email us</strong>
+            <span>hello@stewardly.com</span>
+          </div>
+        </div>
+
+        <div class="contact-detail">
+          <div class="contact-detail-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 11 19.79 19.79 0 01.02 2.18 2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.91a16 16 0 006.08 6.08l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+          </div>
+          <div class="contact-detail-text">
+            <strong>Call us</strong>
+            <span>1-800-STEWARD (Mon–Fri, 9am–6pm ET)</span>
+          </div>
+        </div>
+
+        <div class="contact-detail">
+          <div class="contact-detail-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="contact-detail-text">
+            <strong>Response time</strong>
+            <span>We reply within 1 business day</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="contact-form-wrap">
+        <form id="contactForm" novalidate>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="firstName">First name</label>
+              <input type="text" id="firstName" placeholder="Jane" required />
+            </div>
+            <div class="form-group">
+              <label for="lastName">Last name</label>
+              <input type="text" id="lastName" placeholder="Smith" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="email">Work email</label>
+            <input type="email" id="email" placeholder="jane@myhoa.org" required />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="community">Community name</label>
+              <input type="text" id="community" placeholder="Maple Ridge HOA" />
+            </div>
+            <div class="form-group">
+              <label for="units">Number of units</label>
+              <select id="units">
+                <option value="" disabled selected>Select range</option>
+                <option>1–25 units</option>
+                <option>26–50 units</option>
+                <option>51–150 units</option>
+                <option>151–300 units</option>
+                <option>300+ units</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="reason">How can we help?</label>
+            <select id="reason">
+              <option value="" disabled selected>Select a topic</option>
+              <option>Request a demo</option>
+              <option>Questions about pricing</option>
+              <option>Technical support</option>
+              <option>Partnership inquiry</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="message">Message</label>
+            <textarea id="message" placeholder="Tell us a bit about your community and what you're looking for…"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary form-submit">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Send Message
+          </button>
+          <p class="form-note">By submitting, you agree to our Privacy Policy. We never share your data.</p>
+        </form>
+
+        <div class="form-success" id="formSuccess">
+          <div class="success-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <h3>Message received!</h3>
+          <p>Thanks for reaching out. A member of our team will be in touch within one business day.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ─── FOOTER ─── -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="#" class="nav-logo" style="margin-bottom:14px;display:inline-flex">
+          <div class="logo-mark">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 9.5L12 3l9 6.5V21H3V9.5z" fill="none" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M9 21v-6h6v6" fill="none" stroke="white" stroke-width="1.8" stroke-linejoin="round"/>
+              <circle cx="12" cy="10" r="2" fill="white"/>
+            </svg>
+          </div>
+          Stewardly
+        </a>
+        <p>The modern HOA management platform built for boards who care about their community.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="#solutions">Task Tracker</a></li>
+          <li><a href="#solutions">Meeting Notes</a></li>
+          <li><a href="#solutions">Financials</a></li>
+          <li><a href="#dashboard">Homeowner Dashboard</a></li>
+          <li><a href="#solutions">Message Boards</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <ul>
+          <li><a href="#">About</a></li>
+          <li><a href="#">Blog</a></li>
+          <li><a href="#">Careers</a></li>
+          <li><a href="#">Press</a></li>
+          <li><a href="#">Contact</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Support</h4>
+        <ul>
+          <li><a href="#">Help Center</a></li>
+          <li><a href="#">Getting Started</a></li>
+          <li><a href="#">Community Forum</a></li>
+          <li><a href="#">Status</a></li>
+          <li><a href="#">Security</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2025 Stewardly, Inc. All rights reserved.</p>
+      <div class="footer-links">
+        <a href="#">Privacy Policy</a>
+        <a href="#">Terms of Service</a>
+        <a href="#">Cookie Policy</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // ── Navbar scroll effect
+  const navbar = document.getElementById('navbar');
+  window.addEventListener('scroll', () => {
+    navbar.classList.toggle('scrolled', window.scrollY > 40);
+  });
+
+  // ── Billing toggle
+  const toggle = document.getElementById('billingToggle');
+  let isAnnual = true;
+  const prices = {
+    starter:    { annual: '$49',  monthly: '$59'  },
+    pro:        { annual: '$99',  monthly: '$119' },
+    enterprise: { annual: '$199', monthly: '$249' }
+  };
+  const periods = {
+    annual:  '/month, billed annually',
+    monthly: '/month'
+  };
+  function updatePrices() {
+    const mode = isAnnual ? 'annual' : 'monthly';
+    document.getElementById('starter-price').textContent    = prices.starter[mode];
+    document.getElementById('pro-price').textContent        = prices.pro[mode];
+    document.getElementById('enterprise-price').textContent = prices.enterprise[mode];
+    document.querySelectorAll('.period').forEach(el => {
+      el.textContent = periods[mode];
+    });
+  }
+  toggle.addEventListener('click', () => {
+    isAnnual = !isAnnual;
+    toggle.style.background = isAnnual ? 'var(--teal)' : 'var(--gray-400)';
+    toggle.style.setProperty('--thumb-pos', isAnnual ? '3px' : '27px');
+    toggle.querySelector
+    // Move thumb
+    const thumb = document.createElement('style');
+    if (isAnnual) {
+      toggle.style.cssText = 'background: var(--teal);';
+    } else {
+      toggle.style.cssText = 'background: var(--gray-400);';
+    }
+    // Rebuild toggle indicator
+    toggle.innerHTML = '';
+    toggle.style.position = 'relative';
+    updatePrices();
+  });
+
+  // ── Smooth scroll for anchor links
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const target = document.querySelector(a.getAttribute('href'));
+      if (target) {
+        e.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+
+  // ── Contact form submission
+  const contactForm = document.getElementById('contactForm');
+  const formSuccess = document.getElementById('formSuccess');
+  if (contactForm) {
+    contactForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const firstName = document.getElementById('firstName').value.trim();
+      if (!firstName || !email) {
+        [document.getElementById('firstName'), document.getElementById('email')].forEach(el => {
+          if (!el.value.trim()) {
+            el.style.borderColor = '#EF4444';
+            el.style.boxShadow = '0 0 0 3px rgba(239,68,68,.1)';
+          }
+        });
+        return;
+      }
+      // Simulate submission
+      contactForm.style.opacity = '0';
+      contactForm.style.transition = 'opacity .3s';
+      setTimeout(() => {
+        contactForm.style.display = 'none';
+        formSuccess.style.display = 'block';
+        formSuccess.style.animation = 'fadeIn .4s ease forwards';
+      }, 300);
+    });
+    // Clear error styles on input
+    contactForm.querySelectorAll('input, select, textarea').forEach(el => {
+      el.addEventListener('input', () => {
+        el.style.borderColor = '';
+        el.style.boxShadow = '';
+      });
+    });
+  }
+
+  // ── Intersection observer for fade-in animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.style.opacity = '1';
+        entry.target.style.transform = 'translateY(0)';
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.solution-card, .how-step, .testimonial-card, .pricing-card, .df-feature').forEach(el => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(20px)';
+    el.style.transition = 'opacity .5s ease, transform .5s ease';
+    observer.observe(el);
+  });
+</script>
+</body>
+</html>
