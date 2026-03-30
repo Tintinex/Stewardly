@@ -1,0 +1,25 @@
+{
+  "name": "stewardly-infra",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "cdk": "cdk",
+    "synth": "cdk synth",
+    "deploy": "cdk deploy --all --require-approval never",
+    "destroy": "cdk destroy --all",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.148.0",
+    "constructs": "^10.3.0"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.148.0",
+    "typescript": "^5.5.3",
+    "ts-node": "^10.9.2",
+    "@types/node": "^20.14.10",
+    "esbuild": "^0.23.0"
+  }
+}

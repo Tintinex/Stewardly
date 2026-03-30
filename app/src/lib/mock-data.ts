@@ -1,0 +1,773 @@
+import type {
+  HOA, Unit, User, Task, Meeting, ActionItem, Board, Thread, Post,
+  BudgetLineItem, MonthlyExpense, ExpenseCategory, PlaidAccount,
+  Transaction, DashboardSummary, Financials, AgendaItem,
+} from '@/types'
+
+// ─── HOA ──────────────────────────────────────────────────────────────────────
+
+export const mockHoa: HOA = {
+  id: 'hoa-maple-ridge-001',
+  name: 'Maple Ridge HOA',
+  address: '100 Maple Ridge Drive',
+  city: 'Raleigh',
+  state: 'NC',
+  zip: '27609',
+  unitCount: 24,
+  timezone: 'America/New_York',
+  subscriptionTier: 'growth',
+  createdAt: '2023-01-15T00:00:00Z',
+  updatedAt: '2024-06-01T00:00:00Z',
+}
+
+// ─── Units ────────────────────────────────────────────────────────────────────
+
+export const mockUnits: Unit[] = Array.from({ length: 24 }, (_, i) => ({
+  id: `unit-${String(i + 1).padStart(3, '0')}`,
+  hoaId: mockHoa.id,
+  unitNumber: String(i + 1),
+  address: `${100 + i} Maple Ridge Drive`,
+  sqft: 1200 + (i % 5) * 150,
+  bedrooms: 2 + (i % 3),
+  bathrooms: 2,
+  createdAt: '2023-01-15T00:00:00Z',
+  updatedAt: '2023-01-15T00:00:00Z',
+}))
+
+// ─── Users / Residents ────────────────────────────────────────────────────────
+
+export const mockResidents: User[] = [
+  {
+    id: 'user-001',
+    hoaId: mockHoa.id,
+    email: 'sarah.chen@example.com',
+    firstName: 'Sarah',
+    lastName: 'Chen',
+    role: 'board_admin',
+    unitId: 'unit-001',
+    unitNumber: '1',
+    phone: '(919) 555-0101',
+    avatarUrl: null,
+    createdAt: '2023-01-15T00:00:00Z',
+    updatedAt: '2024-06-01T00:00:00Z',
+  },
+  {
+    id: 'user-002',
+    hoaId: mockHoa.id,
+    email: 'marcus.johnson@example.com',
+    firstName: 'Marcus',
+    lastName: 'Johnson',
+    role: 'board_member',
+    unitId: 'unit-004',
+    unitNumber: '4',
+    phone: '(919) 555-0102',
+    avatarUrl: null,
+    createdAt: '2023-02-10T00:00:00Z',
+    updatedAt: '2024-01-15T00:00:00Z',
+  },
+  {
+    id: 'user-003',
+    hoaId: mockHoa.id,
+    email: 'priya.patel@example.com',
+    firstName: 'Priya',
+    lastName: 'Patel',
+    role: 'board_member',
+    unitId: 'unit-007',
+    unitNumber: '7',
+    phone: '(919) 555-0103',
+    avatarUrl: null,
+    createdAt: '2023-03-05T00:00:00Z',
+    updatedAt: '2024-02-20T00:00:00Z',
+  },
+  {
+    id: 'user-004',
+    hoaId: mockHoa.id,
+    email: 'david.okafor@example.com',
+    firstName: 'David',
+    lastName: 'Okafor',
+    role: 'homeowner',
+    unitId: 'unit-010',
+    unitNumber: '10',
+    phone: '(919) 555-0104',
+    avatarUrl: null,
+    createdAt: '2023-04-12T00:00:00Z',
+    updatedAt: '2023-04-12T00:00:00Z',
+  },
+  {
+    id: 'user-005',
+    hoaId: mockHoa.id,
+    email: 'elena.rodriguez@example.com',
+    firstName: 'Elena',
+    lastName: 'Rodriguez',
+    role: 'homeowner',
+    unitId: 'unit-013',
+    unitNumber: '13',
+    phone: '(919) 555-0105',
+    avatarUrl: null,
+    createdAt: '2023-05-20T00:00:00Z',
+    updatedAt: '2023-05-20T00:00:00Z',
+  },
+  {
+    id: 'user-006',
+    hoaId: mockHoa.id,
+    email: 'james.whitfield@example.com',
+    firstName: 'James',
+    lastName: 'Whitfield',
+    role: 'homeowner',
+    unitId: 'unit-016',
+    unitNumber: '16',
+    phone: '(919) 555-0106',
+    avatarUrl: null,
+    createdAt: '2023-06-08T00:00:00Z',
+    updatedAt: '2023-06-08T00:00:00Z',
+  },
+  {
+    id: 'user-007',
+    hoaId: mockHoa.id,
+    email: 'aisha.washington@example.com',
+    firstName: 'Aisha',
+    lastName: 'Washington',
+    role: 'homeowner',
+    unitId: 'unit-019',
+    unitNumber: '19',
+    phone: '(919) 555-0107',
+    avatarUrl: null,
+    createdAt: '2023-07-14T00:00:00Z',
+    updatedAt: '2023-07-14T00:00:00Z',
+  },
+  {
+    id: 'user-008',
+    hoaId: mockHoa.id,
+    email: 'tom.nguyen@example.com',
+    firstName: 'Tom',
+    lastName: 'Nguyen',
+    role: 'homeowner',
+    unitId: 'unit-022',
+    unitNumber: '22',
+    phone: '(919) 555-0108',
+    avatarUrl: null,
+    createdAt: '2023-08-01T00:00:00Z',
+    updatedAt: '2023-08-01T00:00:00Z',
+  },
+]
+
+// ─── Tasks ────────────────────────────────────────────────────────────────────
+
+export const mockTasks: Task[] = [
+  {
+    id: 'task-001',
+    hoaId: mockHoa.id,
+    title: 'Repair parking lot pothole near Building B',
+    description: 'Large pothole at the entrance of Building B parking lot. Safety hazard reported by multiple residents.',
+    status: 'in_progress',
+    priority: 'high',
+    assigneeId: 'user-002',
+    assigneeName: 'Marcus Johnson',
+    dueDate: '2024-08-15',
+    createdById: 'user-001',
+    createdAt: '2024-07-20T10:00:00Z',
+    updatedAt: '2024-07-22T14:30:00Z',
+  },
+  {
+    id: 'task-002',
+    hoaId: mockHoa.id,
+    title: 'Schedule pool chemical inspection',
+    description: 'Annual pool chemical balance inspection due by end of month.',
+    status: 'todo',
+    priority: 'medium',
+    assigneeId: 'user-003',
+    assigneeName: 'Priya Patel',
+    dueDate: '2024-07-31',
+    createdById: 'user-001',
+    createdAt: '2024-07-18T09:00:00Z',
+    updatedAt: '2024-07-18T09:00:00Z',
+  },
+  {
+    id: 'task-003',
+    hoaId: mockHoa.id,
+    title: 'Update HOA bylaws document on portal',
+    description: 'Post the newly approved 2024 bylaws to the resident portal and send announcement.',
+    status: 'todo',
+    priority: 'medium',
+    assigneeId: 'user-001',
+    assigneeName: 'Sarah Chen',
+    dueDate: '2024-08-01',
+    createdById: 'user-001',
+    createdAt: '2024-07-15T08:00:00Z',
+    updatedAt: '2024-07-15T08:00:00Z',
+  },
+  {
+    id: 'task-004',
+    hoaId: mockHoa.id,
+    title: 'Replace lobby light fixtures in Building A',
+    description: '3 fixtures burned out in the main lobby. Maintenance ticket submitted.',
+    status: 'done',
+    priority: 'low',
+    assigneeId: 'user-002',
+    assigneeName: 'Marcus Johnson',
+    dueDate: '2024-07-10',
+    createdById: 'user-002',
+    createdAt: '2024-07-01T10:00:00Z',
+    updatedAt: '2024-07-09T16:00:00Z',
+  },
+  {
+    id: 'task-005',
+    hoaId: mockHoa.id,
+    title: 'Collect Q3 special assessment payments',
+    description: 'Follow up with 4 units that have not yet submitted Q3 special assessment.',
+    status: 'in_progress',
+    priority: 'high',
+    assigneeId: 'user-001',
+    assigneeName: 'Sarah Chen',
+    dueDate: '2024-07-30',
+    createdById: 'user-001',
+    createdAt: '2024-07-05T11:00:00Z',
+    updatedAt: '2024-07-20T09:00:00Z',
+  },
+  {
+    id: 'task-006',
+    hoaId: mockHoa.id,
+    title: 'Hire landscaping contractor for fall season',
+    description: 'Get 3 bids for fall lawn care and leaf removal contract.',
+    status: 'todo',
+    priority: 'medium',
+    assigneeId: 'user-003',
+    assigneeName: 'Priya Patel',
+    dueDate: '2024-08-20',
+    createdById: 'user-001',
+    createdAt: '2024-07-22T14:00:00Z',
+    updatedAt: '2024-07-22T14:00:00Z',
+  },
+  {
+    id: 'task-007',
+    hoaId: mockHoa.id,
+    title: 'Send welcome package to new residents in Unit 22',
+    description: 'Tom Nguyen moved in last week. Send HOA rules, key fob, and welcome letter.',
+    status: 'done',
+    priority: 'low',
+    assigneeId: 'user-001',
+    assigneeName: 'Sarah Chen',
+    dueDate: '2024-07-15',
+    createdById: 'user-001',
+    createdAt: '2024-07-08T10:00:00Z',
+    updatedAt: '2024-07-14T15:00:00Z',
+  },
+  {
+    id: 'task-008',
+    hoaId: mockHoa.id,
+    title: 'Review insurance renewal quote',
+    description: 'Annual property insurance renewal quote received. Board needs to review and approve.',
+    status: 'todo',
+    priority: 'high',
+    assigneeId: 'user-001',
+    assigneeName: 'Sarah Chen',
+    dueDate: '2024-07-28',
+    createdById: 'user-001',
+    createdAt: '2024-07-20T09:30:00Z',
+    updatedAt: '2024-07-20T09:30:00Z',
+  },
+  {
+    id: 'task-009',
+    hoaId: mockHoa.id,
+    title: 'Paint exterior fence along north boundary',
+    description: 'Fence showing significant weather wear. Approved at June board meeting.',
+    status: 'in_progress',
+    priority: 'low',
+    assigneeId: 'user-002',
+    assigneeName: 'Marcus Johnson',
+    dueDate: '2024-08-31',
+    createdById: 'user-002',
+    createdAt: '2024-07-01T00:00:00Z',
+    updatedAt: '2024-07-18T00:00:00Z',
+  },
+  {
+    id: 'task-010',
+    hoaId: mockHoa.id,
+    title: 'Prepare annual meeting agenda',
+    description: 'Draft agenda for the annual homeowners meeting scheduled for September.',
+    status: 'todo',
+    priority: 'medium',
+    assigneeId: 'user-001',
+    assigneeName: 'Sarah Chen',
+    dueDate: '2024-08-25',
+    createdById: 'user-001',
+    createdAt: '2024-07-23T11:00:00Z',
+    updatedAt: '2024-07-23T11:00:00Z',
+  },
+]
+
+// ─── Meetings ─────────────────────────────────────────────────────────────────
+
+export const mockMeetings: Meeting[] = [
+  {
+    id: 'meeting-001',
+    hoaId: mockHoa.id,
+    title: 'Monthly Board Meeting — August 2024',
+    scheduledAt: '2024-08-06T18:30:00Z',
+    location: 'Community Room B, 100 Maple Ridge Drive',
+    status: 'scheduled',
+    agendaItems: [
+      { id: 'ai-01', order: 1, title: 'Call to Order & Quorum Check', duration: 5 },
+      { id: 'ai-02', order: 2, title: 'Approval of July Minutes', duration: 10 },
+      { id: 'ai-03', order: 3, title: 'Financial Report — Q2 Review', duration: 20 },
+      { id: 'ai-04', order: 4, title: 'Parking Lot Repair Update', duration: 15 },
+      { id: 'ai-05', order: 5, title: 'Insurance Renewal Discussion', duration: 15 },
+      { id: 'ai-06', order: 6, title: 'Open Forum — Resident Questions', duration: 20 },
+      { id: 'ai-07', order: 7, title: 'Adjournment', duration: 5 },
+    ] as AgendaItem[],
+    minutes: null,
+    createdById: 'user-001',
+    createdAt: '2024-07-20T00:00:00Z',
+    updatedAt: '2024-07-20T00:00:00Z',
+  },
+  {
+    id: 'meeting-002',
+    hoaId: mockHoa.id,
+    title: 'Monthly Board Meeting — July 2024',
+    scheduledAt: '2024-07-09T18:30:00Z',
+    location: 'Community Room B, 100 Maple Ridge Drive',
+    status: 'completed',
+    agendaItems: [
+      { id: 'ai-08', order: 1, title: 'Call to Order', duration: 5 },
+      { id: 'ai-09', order: 2, title: 'Financial Report', duration: 20 },
+      { id: 'ai-10', order: 3, title: 'Pool Safety Updates', duration: 15 },
+      { id: 'ai-11', order: 4, title: 'New Resident Introductions', duration: 10 },
+      { id: 'ai-12', order: 5, title: 'Adjournment', duration: 5 },
+    ] as AgendaItem[],
+    minutes: `MINUTES OF THE MAPLE RIDGE HOA BOARD MEETING
+July 9, 2024 — 6:30 PM
+Community Room B
+
+MEMBERS PRESENT: Sarah Chen (President), Marcus Johnson (VP), Priya Patel (Treasurer)
+
+CALL TO ORDER: Meeting called to order at 6:32 PM by President Chen. Quorum confirmed with 3 of 3 board members present.
+
+FINANCIAL REPORT: Treasurer Patel presented Q2 financials. Monthly dues collection at 96% ($46,272 of $48,200 collected). Reserve fund balance at $182,400. YTD expenses at $87,340 against $94,000 budget. Surplus of $6,660.
+
+POOL SAFETY UPDATES: Johnson reported pool chemical levels are within normal range. Recommended scheduling the annual inspection by July 31. Motion passed unanimously.
+
+NEW RESIDENT INTRODUCTIONS: President Chen welcomed Tom Nguyen (Unit 22). Action item assigned to send welcome package.
+
+ADJOURNMENT: Meeting adjourned at 7:48 PM.
+
+Respectfully submitted,
+Sarah Chen, HOA President`,
+    createdById: 'user-001',
+    createdAt: '2024-07-01T00:00:00Z',
+    updatedAt: '2024-07-10T09:00:00Z',
+  },
+  {
+    id: 'meeting-003',
+    hoaId: mockHoa.id,
+    title: 'Special Meeting — Bylaw Amendments',
+    scheduledAt: '2024-06-18T18:00:00Z',
+    location: 'Virtual (Zoom)',
+    status: 'completed',
+    agendaItems: [
+      { id: 'ai-13', order: 1, title: 'Bylaw Amendment Presentation', duration: 30 },
+      { id: 'ai-14', order: 2, title: 'Homeowner Q&A', duration: 30 },
+      { id: 'ai-15', order: 3, title: 'Vote on Amendments', duration: 15 },
+    ] as AgendaItem[],
+    minutes: `SPECIAL MEETING MINUTES — MAPLE RIDGE HOA
+June 18, 2024 — 6:00 PM (Virtual)
+
+ATTENDEES: 18 homeowners present. All board members present.
+
+PURPOSE: Vote on proposed bylaw amendments regarding short-term rental policy and parking regulations.
+
+VOTE RESULTS:
+- Amendment 1 (Short-term rental restriction, max 30 days/year): PASSED — 15 in favor, 3 opposed
+- Amendment 2 (Parking — 2 vehicles per unit maximum): PASSED — 17 in favor, 1 opposed
+
+ACTION ITEMS: Legal counsel to finalize amended bylaws document by July 15. Board to post updated bylaws to portal.
+
+Meeting adjourned at 7:22 PM.`,
+    createdById: 'user-001',
+    createdAt: '2024-06-10T00:00:00Z',
+    updatedAt: '2024-06-19T10:00:00Z',
+  },
+]
+
+// ─── Action Items ─────────────────────────────────────────────────────────────
+
+export const mockActionItems: ActionItem[] = [
+  {
+    id: 'action-001',
+    meetingId: 'meeting-002',
+    hoaId: mockHoa.id,
+    title: 'Schedule pool chemical inspection',
+    assigneeId: 'user-003',
+    assigneeName: 'Priya Patel',
+    dueDate: '2024-07-31',
+    completed: false,
+    linkedTaskId: 'task-002',
+    createdAt: '2024-07-09T19:00:00Z',
+  },
+  {
+    id: 'action-002',
+    meetingId: 'meeting-002',
+    hoaId: mockHoa.id,
+    title: 'Send welcome package to Unit 22',
+    assigneeId: 'user-001',
+    assigneeName: 'Sarah Chen',
+    dueDate: '2024-07-15',
+    completed: true,
+    linkedTaskId: 'task-007',
+    createdAt: '2024-07-09T19:00:00Z',
+  },
+  {
+    id: 'action-003',
+    meetingId: 'meeting-003',
+    hoaId: mockHoa.id,
+    title: 'Post updated bylaws to resident portal',
+    assigneeId: 'user-001',
+    assigneeName: 'Sarah Chen',
+    dueDate: '2024-07-15',
+    completed: false,
+    linkedTaskId: 'task-003',
+    createdAt: '2024-06-18T19:30:00Z',
+  },
+  {
+    id: 'action-004',
+    meetingId: 'meeting-003',
+    hoaId: mockHoa.id,
+    title: 'Have legal counsel finalize amended bylaws',
+    assigneeId: 'user-001',
+    assigneeName: 'Sarah Chen',
+    dueDate: '2024-07-15',
+    completed: true,
+    linkedTaskId: null,
+    createdAt: '2024-06-18T19:30:00Z',
+  },
+  {
+    id: 'action-005',
+    meetingId: 'meeting-002',
+    hoaId: mockHoa.id,
+    title: 'Get 3 bids for parking lot repair',
+    assigneeId: 'user-002',
+    assigneeName: 'Marcus Johnson',
+    dueDate: '2024-07-25',
+    completed: true,
+    linkedTaskId: 'task-001',
+    createdAt: '2024-07-09T19:00:00Z',
+  },
+]
+
+// ─── Message Boards ───────────────────────────────────────────────────────────
+
+export const mockBoards: Board[] = [
+  {
+    id: 'board-001',
+    hoaId: mockHoa.id,
+    name: 'Community Wide',
+    description: 'Announcements and discussions for all Maple Ridge residents',
+    visibility: 'community_wide',
+    threadCount: 2,
+    createdAt: '2023-01-15T00:00:00Z',
+  },
+  {
+    id: 'board-002',
+    hoaId: mockHoa.id,
+    name: 'Board Only',
+    description: 'Private board member communications',
+    visibility: 'board_only',
+    threadCount: 1,
+    createdAt: '2023-01-15T00:00:00Z',
+  },
+  {
+    id: 'board-003',
+    hoaId: mockHoa.id,
+    name: 'Maintenance Requests',
+    description: 'Submit and track community maintenance issues',
+    visibility: 'community_wide',
+    threadCount: 1,
+    createdAt: '2023-02-01T00:00:00Z',
+  },
+]
+
+export const mockThreads: Thread[] = [
+  {
+    id: 'thread-001',
+    boardId: 'board-001',
+    hoaId: mockHoa.id,
+    title: 'Pool Hours Update — Summer 2024',
+    authorId: 'user-001',
+    authorName: 'Sarah Chen',
+    pinned: true,
+    postCount: 3,
+    lastPostAt: '2024-07-20T14:00:00Z',
+    createdAt: '2024-07-01T10:00:00Z',
+  },
+  {
+    id: 'thread-002',
+    boardId: 'board-001',
+    hoaId: mockHoa.id,
+    title: 'Annual BBQ — August 17th!',
+    authorId: 'user-005',
+    authorName: 'Elena Rodriguez',
+    pinned: false,
+    postCount: 4,
+    lastPostAt: '2024-07-22T11:00:00Z',
+    createdAt: '2024-07-18T09:00:00Z',
+  },
+  {
+    id: 'thread-003',
+    boardId: 'board-002',
+    hoaId: mockHoa.id,
+    title: 'Insurance Renewal — Options Review',
+    authorId: 'user-001',
+    authorName: 'Sarah Chen',
+    pinned: false,
+    postCount: 2,
+    lastPostAt: '2024-07-21T16:00:00Z',
+    createdAt: '2024-07-20T09:30:00Z',
+  },
+  {
+    id: 'thread-004',
+    boardId: 'board-003',
+    hoaId: mockHoa.id,
+    title: 'Broken sprinkler head — Zone 3',
+    authorId: 'user-004',
+    authorName: 'David Okafor',
+    pinned: false,
+    postCount: 2,
+    lastPostAt: '2024-07-19T13:00:00Z',
+    createdAt: '2024-07-17T08:30:00Z',
+  },
+]
+
+export const mockPosts: Post[] = [
+  // Thread 1: Pool Hours
+  {
+    id: 'post-001',
+    threadId: 'thread-001',
+    hoaId: mockHoa.id,
+    authorId: 'user-001',
+    authorName: 'Sarah Chen',
+    body: 'Hi Maple Ridge community! Effective July 1st, summer pool hours are 7:00 AM – 10:00 PM daily. Please ensure all guests are accompanied by a resident. Enjoy the summer!',
+    createdAt: '2024-07-01T10:00:00Z',
+    updatedAt: '2024-07-01T10:00:00Z',
+  },
+  {
+    id: 'post-002',
+    threadId: 'thread-001',
+    hoaId: mockHoa.id,
+    authorId: 'user-006',
+    authorName: 'James Whitfield',
+    body: 'Thanks for the update, Sarah! Quick question — are the extended hours on weekends or weekdays?',
+    createdAt: '2024-07-15T08:00:00Z',
+    updatedAt: '2024-07-15T08:00:00Z',
+  },
+  {
+    id: 'post-003',
+    threadId: 'thread-001',
+    hoaId: mockHoa.id,
+    authorId: 'user-001',
+    authorName: 'Sarah Chen',
+    body: 'Hi James! The 7 AM – 10 PM hours apply every day including weekends for the summer season (through Labor Day).',
+    createdAt: '2024-07-20T14:00:00Z',
+    updatedAt: '2024-07-20T14:00:00Z',
+  },
+  // Thread 2: BBQ
+  {
+    id: 'post-004',
+    threadId: 'thread-002',
+    hoaId: mockHoa.id,
+    authorId: 'user-005',
+    authorName: 'Elena Rodriguez',
+    body: 'Exciting news — the annual Maple Ridge BBQ is on! Saturday, August 17th from 2 PM to 7 PM at the main pavilion. Food and drinks provided. Families welcome!',
+    createdAt: '2024-07-18T09:00:00Z',
+    updatedAt: '2024-07-18T09:00:00Z',
+  },
+  {
+    id: 'post-005',
+    threadId: 'thread-002',
+    hoaId: mockHoa.id,
+    authorId: 'user-007',
+    authorName: 'Aisha Washington',
+    body: 'Can\'t wait! Can we bring a dish to share? I make a great potato salad.',
+    createdAt: '2024-07-18T11:00:00Z',
+    updatedAt: '2024-07-18T11:00:00Z',
+  },
+  {
+    id: 'post-006',
+    threadId: 'thread-002',
+    hoaId: mockHoa.id,
+    authorId: 'user-005',
+    authorName: 'Elena Rodriguez',
+    body: 'Yes, absolutely! We\'d love community contributions. I\'ll post a sign-up sheet in the lobby later this week.',
+    createdAt: '2024-07-19T10:00:00Z',
+    updatedAt: '2024-07-19T10:00:00Z',
+  },
+  {
+    id: 'post-007',
+    threadId: 'thread-002',
+    hoaId: mockHoa.id,
+    authorId: 'user-008',
+    authorName: 'Tom Nguyen',
+    body: 'Great way to meet everyone! Looking forward to it as the newest resident.',
+    createdAt: '2024-07-22T11:00:00Z',
+    updatedAt: '2024-07-22T11:00:00Z',
+  },
+  // Thread 3: Insurance (board only)
+  {
+    id: 'post-008',
+    threadId: 'thread-003',
+    hoaId: mockHoa.id,
+    authorId: 'user-001',
+    authorName: 'Sarah Chen',
+    body: 'I\'ve received the renewal quote from Nationwide — $34,800/year (up 4% from last year). I\'ve attached the full quote document. Please review before our August meeting.',
+    createdAt: '2024-07-20T09:30:00Z',
+    updatedAt: '2024-07-20T09:30:00Z',
+  },
+  {
+    id: 'post-009',
+    threadId: 'thread-003',
+    hoaId: mockHoa.id,
+    authorId: 'user-003',
+    authorName: 'Priya Patel',
+    body: 'Reviewed the quote. The liability coverage increase to $2M is worth the 4% bump. I\'d recommend approving. Want me to get a competing quote from State Farm for comparison?',
+    createdAt: '2024-07-21T16:00:00Z',
+    updatedAt: '2024-07-21T16:00:00Z',
+  },
+  // Thread 4: Sprinkler
+  {
+    id: 'post-010',
+    threadId: 'thread-004',
+    hoaId: mockHoa.id,
+    authorId: 'user-004',
+    authorName: 'David Okafor',
+    body: 'Noticed a broken sprinkler head in Zone 3 near Building B entrance. It\'s been spraying the sidewalk instead of the grass for 3 days now. Wasting a lot of water.',
+    createdAt: '2024-07-17T08:30:00Z',
+    updatedAt: '2024-07-17T08:30:00Z',
+  },
+  {
+    id: 'post-011',
+    threadId: 'thread-004',
+    hoaId: mockHoa.id,
+    authorId: 'user-002',
+    authorName: 'Marcus Johnson',
+    body: 'Thanks David! I\'ve flagged this for our maintenance crew. They\'ll address it by Thursday. Appreciate you reporting it.',
+    createdAt: '2024-07-19T13:00:00Z',
+    updatedAt: '2024-07-19T13:00:00Z',
+  },
+]
+
+// ─── Financial Data ───────────────────────────────────────────────────────────
+
+export const mockBudgetLineItems: BudgetLineItem[] = [
+  { id: 'bli-01', budgetId: 'budget-001', hoaId: mockHoa.id, category: 'Landscaping',    description: 'Lawn care, trimming, seasonal planting', budgetedAmount: 18000, actualAmount: 16800, variance: 1200 },
+  { id: 'bli-02', budgetId: 'budget-001', hoaId: mockHoa.id, category: 'Pool & Amenities', description: 'Pool maintenance, chemicals, equipment',  budgetedAmount: 12000, actualAmount: 11200, variance: 800 },
+  { id: 'bli-03', budgetId: 'budget-001', hoaId: mockHoa.id, category: 'Insurance',      description: 'Property & liability insurance',             budgetedAmount: 34800, actualAmount: 34800, variance: 0 },
+  { id: 'bli-04', budgetId: 'budget-001', hoaId: mockHoa.id, category: 'Utilities',      description: 'Electric, water, trash for common areas',    budgetedAmount: 14400, actualAmount: 15200, variance: -800 },
+  { id: 'bli-05', budgetId: 'budget-001', hoaId: mockHoa.id, category: 'Maintenance',    description: 'General repairs and maintenance',            budgetedAmount: 22000, actualAmount: 18340, variance: 3660 },
+  { id: 'bli-06', budgetId: 'budget-001', hoaId: mockHoa.id, category: 'Management',     description: 'Property management software & admin',       budgetedAmount: 6000,  actualAmount: 5400, variance: 600 },
+  { id: 'bli-07', budgetId: 'budget-001', hoaId: mockHoa.id, category: 'Legal & Audit',  description: 'Legal fees and annual audit',                budgetedAmount: 8000,  actualAmount: 4200, variance: 3800 },
+  { id: 'bli-08', budgetId: 'budget-001', hoaId: mockHoa.id, category: 'Reserve Contribution', description: 'Monthly contribution to reserve fund', budgetedAmount: 28000, actualAmount: 28000, variance: 0 },
+]
+
+export const mockExpenseTrend: MonthlyExpense[] = [
+  { month: 'Feb 24', amount: 11800, budget: 12000 },
+  { month: 'Mar 24', amount: 14200, budget: 13000 },
+  { month: 'Apr 24', amount: 13100, budget: 13000 },
+  { month: 'May 24', amount: 15800, budget: 14500 },
+  { month: 'Jun 24', amount: 16340, budget: 15000 },
+  { month: 'Jul 24', amount: 16300, budget: 16000 },
+]
+
+export const mockExpenseBreakdown: ExpenseCategory[] = [
+  { category: 'Insurance',      amount: 34800, color: '#0C1F3F' },
+  { category: 'Reserve',        amount: 28000, color: '#0D9E8A' },
+  { category: 'Maintenance',    amount: 18340, color: '#F5A623' },
+  { category: 'Landscaping',    amount: 16800, color: '#3DBDAE' },
+  { category: 'Utilities',      amount: 15200, color: '#4D729A' },
+  { category: 'Pool',           amount: 11200, color: '#64CBBF' },
+  { category: 'Management',     amount: 5400,  color: '#9DAFC9' },
+  { category: 'Legal & Audit',  amount: 4200,  color: '#C6D0E4' },
+]
+
+export const mockAccounts: PlaidAccount[] = [
+  {
+    id: 'acct-001',
+    hoaId: mockHoa.id,
+    institutionName: 'First Citizens Bank',
+    accountName: 'HOA Operating Account',
+    accountType: 'checking',
+    balance: 94720.00,
+    currency: 'USD',
+    lastSyncedAt: '2024-07-23T06:00:00Z',
+  },
+  {
+    id: 'acct-002',
+    hoaId: mockHoa.id,
+    institutionName: 'First Citizens Bank',
+    accountName: 'HOA Reserve Fund',
+    accountType: 'savings',
+    balance: 182400.00,
+    currency: 'USD',
+    lastSyncedAt: '2024-07-23T06:00:00Z',
+  },
+]
+
+export const mockTransactions: Transaction[] = [
+  { id: 'txn-001', hoaId: mockHoa.id, accountId: 'acct-001', amount: -3200.00, description: 'Green Thumb Landscaping — July', category: 'Landscaping', date: '2024-07-15', type: 'debit' },
+  { id: 'txn-002', hoaId: mockHoa.id, accountId: 'acct-001', amount: -1840.00, description: 'Duke Energy — Common Areas Electric', category: 'Utilities', date: '2024-07-12', type: 'debit' },
+  { id: 'txn-003', hoaId: mockHoa.id, accountId: 'acct-001', amount: 48200.00, description: 'Monthly Dues Collection — July', category: 'Income', date: '2024-07-01', type: 'credit' },
+  { id: 'txn-004', hoaId: mockHoa.id, accountId: 'acct-001', amount: -980.00, description: 'Aqua Pool Services — Monthly', category: 'Pool & Amenities', date: '2024-07-08', type: 'debit' },
+  { id: 'txn-005', hoaId: mockHoa.id, accountId: 'acct-001', amount: -450.00, description: 'City of Raleigh — Trash Collection', category: 'Utilities', date: '2024-07-05', type: 'debit' },
+  { id: 'txn-006', hoaId: mockHoa.id, accountId: 'acct-001', amount: -2900.00, description: 'ABC Asphalt — Pothole Estimate Deposit', category: 'Maintenance', date: '2024-07-22', type: 'debit' },
+  { id: 'txn-007', hoaId: mockHoa.id, accountId: 'acct-002', amount: 2500.00, description: 'Reserve Fund Contribution — July', category: 'Reserve', date: '2024-07-01', type: 'credit' },
+]
+
+// ─── Dashboard Summary ────────────────────────────────────────────────────────
+
+export const mockDashboardSummary: DashboardSummary = {
+  hoaName: mockHoa.name,
+  totalUnits: mockHoa.unitCount,
+  duesCollectedPercent: 96,
+  duesCollectedAmount: 46272,
+  totalDuesAmount: 48200,
+  openTasksCount: mockTasks.filter(t => t.status !== 'done').length,
+  reserveFundBalance: 182400,
+  recentTasks: mockTasks.slice(0, 5),
+  upcomingMeetings: mockMeetings.filter(m => m.status === 'scheduled'),
+  recentPosts: [
+    {
+      id: 'post-007',
+      boardName: 'Community Wide',
+      threadTitle: 'Annual BBQ — August 17th!',
+      authorName: 'Tom Nguyen',
+      body: 'Great way to meet everyone! Looking forward to it as the newest resident.',
+      createdAt: '2024-07-22T11:00:00Z',
+    },
+    {
+      id: 'post-006',
+      boardName: 'Community Wide',
+      threadTitle: 'Annual BBQ — August 17th!',
+      authorName: 'Elena Rodriguez',
+      body: 'Yes, absolutely! We\'d love community contributions.',
+      createdAt: '2024-07-19T10:00:00Z',
+    },
+    {
+      id: 'post-003',
+      boardName: 'Community Wide',
+      threadTitle: 'Pool Hours Update — Summer 2024',
+      authorName: 'Sarah Chen',
+      body: 'The 7 AM – 10 PM hours apply every day including weekends.',
+      createdAt: '2024-07-20T14:00:00Z',
+    },
+  ],
+  expenseTrend: mockExpenseTrend,
+  expenseBreakdown: mockExpenseBreakdown,
+}
+
+export const mockFinancials: Financials = {
+  totalBudget: 143200,
+  ytdExpenses: 87340,
+  reserveFundBalance: 182400,
+  lineItems: mockBudgetLineItems,
+  expenseTrend: mockExpenseTrend,
+  expenseBreakdown: mockExpenseBreakdown,
+  accounts: mockAccounts,
+  recentTransactions: mockTransactions,
+}
