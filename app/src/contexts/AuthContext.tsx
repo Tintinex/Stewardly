@@ -2,8 +2,14 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { config } from '@/lib/config'
+import { configureAmplify, fetchAuthSession } from '@/lib/amplify'
 import * as api from '@/lib/api'
 import type { AuthUser, UserRole } from '@/types'
+
+// Configure Amplify once, client-side only (guard against SSR)
+if (typeof window !== 'undefined') {
+  configureAmplify()
+}
 
 interface AuthContextValue {
   user: AuthUser | null
@@ -37,7 +43,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const u = await api.getCurrentUser()
         setUser(u)
       } else {
-        const { fetchAuthSession } = await import('aws-amplify/auth')
         const session = await fetchAuthSession()
         if (session.tokens) {
           const u = await api.getCurrentUser()

@@ -1,5 +1,5 @@
 import { config } from './config'
-import { getAuthToken } from './amplify'
+import { getAuthToken, amplifySignIn, amplifySignOut, fetchAuthSession } from './amplify'
 import {
   mockResidents, mockTasks, mockMeetings, mockBoards,
   mockThreads, mockPosts, mockDashboardSummary, mockFinancials,
@@ -54,7 +54,25 @@ export async function getCurrentUser(): Promise<AuthUser> {
       unitId: u.unitId,
     }
   }
-  return apiFetch<AuthUser>('/api/me')
+
+  // Read identity directly from the Cognito JWT — no backend call needed.
+  // The access token carries custom:hoaId, custom:role, sub, and email.
+  const session = await fetchAuthSession()
+  const token = session.tokens?.accessToken
+  if (!token) throw new Error('No active session')
+
+  // Amplify v6 exposes the decoded payload on the token object
+  const payload = token.payload as Record<string, string>
+
+  return {
+    id: payload['sub'] ?? '',
+    email: payload['email'] ?? payload['username'] ?? '',
+    firstName: payload['given_name'] ?? '',
+    lastName: payload['family_name'] ?? '',
+    hoaId: payload['custom:hoaId'] ?? '',
+    role: (payload['custom:role'] ?? 'homeowner') as AuthUser['role'],
+    unitId: payload['custom:unitId'] ?? null,
+  }
 }
 
 export async function signIn(email: string, password: string): Promise<void> {
@@ -63,7 +81,10 @@ export async function signIn(email: string, password: string): Promise<void> {
     if (email && password) return
     throw new Error('Email and password are required')
   }
-  const { signIn: amplifySignIn } = await import('aws-amplify/auth')
+
+  // Clear any stale session so we never hit "There is already a signed in user"
+  try { await amplifySignOut() } catch { /* no session — that's fine */ }
+
   await amplifySignIn({ username: email, password })
 }
 
@@ -72,7 +93,6 @@ export async function signOut(): Promise<void> {
     await delay(100)
     return
   }
-  const { signOut: amplifySignOut } = await import('aws-amplify/auth')
   await amplifySignOut()
 }
 
