@@ -151,14 +151,19 @@ export const handler = async (
       return deny
     }
 
+    const userId = claims.sub
+    const role = claims['custom:role'] ?? 'homeowner'
+
+    // Superadmin bypass — these users have no hoaId but are platform operators
+    if (role === 'superadmin') {
+      return { isAuthorized: true, context: { hoaId: '', userId, role } }
+    }
+
     const hoaId = claims['custom:hoaId']
     if (!hoaId) {
       console.warn('Token missing custom:hoaId claim')
       return deny
     }
-
-    const userId = claims.sub
-    const role = claims['custom:role'] ?? 'homeowner'
 
     return {
       isAuthorized: true,

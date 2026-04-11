@@ -1,0 +1,36 @@
+;;
+;; Domain:     stewardly.biz.
+;; Exported:   2026-04-10 16:42:07
+;;
+;; This file is intended for use for informational and archival
+;; purposes ONLY and MUST be edited before use on a production
+;; DNS server.  In particular, you must:
+;;   -- update the SOA record with the correct authoritative name server
+;;   -- update the SOA record with the contact e-mail address information
+;;   -- update the NS record(s) with the authoritative name servers for this domain.
+;;
+;; For further information, please consult the BIND documentation
+;; located on the following website:
+;;
+;; http://www.isc.org/
+;;
+;; And RFC 1035:
+;;
+;; http://www.ietf.org/rfc/rfc1035.txt
+;;
+;; Please note that we do NOT offer technical support for any use
+;; of this zone data, the BIND name server, or any other third-party
+;; DNS software.
+;;
+;; Use at your own risk.
+;; SOA Record
+stewardly.biz	3600	IN	SOA	anastasia.ns.cloudflare.com. dns.cloudflare.com. 2052750592 10000 2400 604800 3600
+
+;; NS Records
+stewardly.biz.	86400	IN	NS	anastasia.ns.cloudflare.com.
+stewardly.biz.	86400	IN	NS	khalid.ns.cloudflare.com.
+
+;; CNAME Records
+_05963464e02762203163a4e4160d60fe.app.stewardly.biz.	1	IN	CNAME	_3949de661ec86b5210cd0684583970d0.jkddzztszm.acm-validations.aws. ; cf_tags=cf-proxied:false
+_70566b77bd9357e54c55c0f210a3131e.www.stewardly.biz.	1	IN	CNAME	_fa7842483d2320fc34acbca593291c85.jkddzztszm.acm-validations.aws. ; cf_tags=cf-proxied:false
+_eac02c589ecc17c2d7480ed7ee36bc99.stewardly.biz.	1	IN	CNAME	_96a7d1446ee8f7858b25611b9b059307.jkddzztszm.acm-validations.aws. ; cf_tags=cf-proxied:false

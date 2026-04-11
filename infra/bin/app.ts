@@ -6,6 +6,7 @@ import { StorageStack } from '../lib/stacks/storage-stack'
 import { DatabaseStack } from '../lib/stacks/database-stack'
 import { AuthStack } from '../lib/stacks/auth-stack'
 import { ApiStack } from '../lib/stacks/api-stack'
+import { WebStack } from '../lib/stacks/web-stack'
 import { environments } from '../lib/config/environments'
 
 const app = new cdk.App()
@@ -65,10 +66,22 @@ const api = new ApiStack(app, `StewardlyApi-${stage}`, {
   vpc: network.vpc,
   lambdaSg: network.lambdaSg,
   userPool: auth.userPool,
+  authorizerFunction: auth.authorizerFunction,
   bucket: storage.bucket,
-  dbCluster: database.cluster,
+  dbInstance: database.instance,
   dbSecret: database.secret,
   kmsKey: database.kmsKey,
+  tags,
+})
+
+// Set CERTIFICATE_ARN env var after ACM cert is issued (see deployment guide)
+const certificateArn = process.env.CERTIFICATE_ARN
+
+new WebStack(app, `StewardlyWeb-${stage}`, {
+  env,
+  stage,
+  envConfig,
+  certificateArn,
   tags,
 })
 

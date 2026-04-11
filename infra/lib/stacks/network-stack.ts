@@ -22,7 +22,7 @@ export class NetworkStack extends cdk.Stack {
     // VPC with public, private, and isolated subnets
     this.vpc = new ec2.Vpc(this, 'Vpc', {
       vpcName: `stewardly-${stage}`,
-      cidr: '10.0.0.0/16',
+      ipAddresses: ec2.IpAddresses.cidr('10.0.0.0/16'),
       maxAzs: envConfig.auroraMultiAz ? 2 : 2,
       natGateways: envConfig.stage === 'prod' ? 2 : 1,
       subnetConfiguration: [

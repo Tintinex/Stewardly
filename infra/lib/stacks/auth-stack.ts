@@ -1,3 +1,8 @@
+import * as path from 'path'
+import * as fs from 'fs'
+import { buildSync } from 'esbuild'
+
+const LOCAL_NM = 'C:\\stewardly-services-nm\\node_modules'
 import * as cdk from 'aws-cdk-lib'
 import * as cognito from 'aws-cdk-lib/aws-cognito'
 import * as lambda from 'aws-cdk-lib/aws-lambda'
@@ -133,10 +138,26 @@ export class AuthStack extends cdk.Stack {
       handler: 'index.handler',
       code: lambda.Code.fromAsset('../services', {
         bundling: {
+          local: {
+            tryBundle(outputDir: string): boolean {
+              try {
+                buildSync({
+                  entryPoints: [path.resolve('../services/shared/tenant-authorizer/index.ts')],
+                  bundle: true,
+                  platform: 'node',
+                  target: 'node20',
+                  external: ['@aws-sdk/*'],
+                  outfile: path.join(outputDir, 'index.js'),
+                  nodePaths: [LOCAL_NM],
+                })
+                return true
+              } catch { return false }
+            },
+          },
           image: lambda.Runtime.NODEJS_20_X.bundlingImage,
           command: [
             'bash', '-c',
-            'npm install && npx esbuild shared/tenant-authorizer/index.ts --bundle --platform=node --target=node20 --outfile=/asset-output/index.js',
+            'npm install && npx esbuild shared/tenant-authorizer/index.ts --bundle --platform=node --target=node20 --external:@aws-sdk/* --outfile=/asset-output/index.js',
           ],
         },
       }),
@@ -148,6 +169,14 @@ export class AuthStack extends cdk.Stack {
         COGNITO_USER_POOL_ID: this.userPool.userPoolId,
         COGNITO_REGION: cdk.Aws.REGION,
       },
+    })
+
+    // Superadmin Cognito group (users created manually — never via self-signup)
+    new cognito.CfnUserPoolGroup(this, 'SuperadminGroup', {
+      groupName: 'superadmin',
+      userPoolId: this.userPool.userPoolId,
+      description: 'Stewardly platform administrators',
+      precedence: 0,
     })
 
     // Outputs

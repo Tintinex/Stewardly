@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, CheckSquare, Calendar, Users,
-  BarChart2, MessageSquare, Settings, LogOut,
+  BarChart2, MessageSquare, Settings, LogOut, ShieldAlert,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAuth } from '@/contexts/AuthContext'
@@ -77,6 +77,19 @@ export function Sidebar({ onClose }: SidebarProps) {
           ))}
         </ul>
       </nav>
+
+      {/* Admin Console link — superadmin only */}
+      {user?.role === 'superadmin' && (
+        <div className="px-3 pb-2">
+          <Link
+            href="/admin/hoas"
+            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-300 hover:bg-white/10 transition-colors border border-amber-400/30"
+          >
+            <ShieldAlert size={18} className="shrink-0" />
+            Admin Console
+          </Link>
+        </div>
+      )}
 
       {/* User Footer */}
       {user && (

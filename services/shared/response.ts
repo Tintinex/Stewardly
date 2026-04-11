@@ -1,14 +1,14 @@
+export type ApiResponse = {
+  statusCode: number
+  headers: Record<string, string>
+  body: string
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type,Authorization',
   'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
   'Content-Type': 'application/json',
-}
-
-interface ApiResponse {
-  statusCode: number
-  headers: Record<string, string>
-  body: string
 }
 
 export const ok = (body: unknown): ApiResponse => ({

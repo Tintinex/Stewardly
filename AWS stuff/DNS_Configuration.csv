@@ -1,0 +1,4 @@
+﻿"Domain name","CNAME name","Type","CNAME value"
+"stewardly.app","_eac02c589ecc17c2d7480ed7ee36bc99.stewardly.app.","CNAME","_96a7d1446ee8f7858b25611b9b059307.jkddzztszm.acm-validations.aws."
+"www.stewardly.app","_70566b77bd9357e54c55c0f210a3131e.www.stewardly.app.","CNAME","_fa7842483d2320fc34acbca593291c85.jkddzztszm.acm-validations.aws."
+"app.stewardly.app","_05963464e02762203163a4e4160d60fe.app.stewardly.app.","CNAME","_3949de661ec86b5210cd0684583970d0.jkddzztszm.acm-validations.aws."

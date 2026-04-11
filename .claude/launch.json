@@ -7,6 +7,19 @@
       "runtimeArgs": ["/c", "Y:\\MBGLH1~V\\SD3W9F~E\\_PHJLS~R\\start-server.bat"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "stewardly-app",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000,
+      "cwd": "Y:\\My AI Projects\\Stewardly\\app"
+    },
+    {
+      "name": "stewardly-app-prod",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "app\\serve-prod.bat"],
+      "port": 3000
     }
   ]
 }

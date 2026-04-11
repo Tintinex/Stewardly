@@ -7,7 +7,7 @@
     "watch": "tsc -w",
     "cdk": "cdk",
     "synth": "cdk synth",
-    "deploy": "cdk deploy --all --require-approval never",
+    "deploy": "cdk deploy --all --require-approval never --outputs-file C:\\stewardly-cdk-out\\cdk-outputs.json",
     "destroy": "cdk destroy --all",
     "type-check": "tsc --noEmit"
   },

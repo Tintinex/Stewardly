@@ -11,7 +11,7 @@ export interface EnvConfig {
 export const environments: Record<string, EnvConfig> = {
   dev: {
     stage: 'dev',
-    auroraMinAcu: 0.5,
+    auroraMinAcu: 0,   // scale to zero when idle — saves ~$7/month
     auroraMaxAcu: 2,
     auroraMultiAz: false,
     lambdaMemoryMb: 256,

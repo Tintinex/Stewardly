@@ -26,7 +26,7 @@ export interface Unit {
   updatedAt: string
 }
 
-export type UserRole = 'board_admin' | 'board_member' | 'homeowner'
+export type UserRole = 'board_admin' | 'board_member' | 'homeowner' | 'superadmin'
 
 export interface User {
   id: string

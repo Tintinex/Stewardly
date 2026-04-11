@@ -5,8 +5,8 @@ import * as kms from 'aws-cdk-lib/aws-kms'
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
 import * as lambda from 'aws-cdk-lib/aws-lambda'
 import * as logs from 'aws-cdk-lib/aws-logs'
+import * as iam from 'aws-cdk-lib/aws-iam'
 import { Construct } from 'constructs'
-import * as path from 'path'
 import type { EnvConfig } from '../config/environments'
 
 interface DatabaseStackProps extends cdk.StackProps {
@@ -17,7 +17,8 @@ interface DatabaseStackProps extends cdk.StackProps {
 }
 
 export class DatabaseStack extends cdk.Stack {
-  public readonly cluster: rds.DatabaseCluster
+  /** Standard RDS PostgreSQL instance — free-tier eligible (db.t3.micro) */
+  public readonly instance: rds.DatabaseInstance
   public readonly secret: secretsmanager.ISecret
   public readonly kmsKey: kms.Key
   public readonly financialKmsKey: kms.Key
@@ -30,7 +31,7 @@ export class DatabaseStack extends cdk.Stack {
     // KMS key for database encryption
     this.kmsKey = new kms.Key(this, 'DatabaseKey', {
       alias: `stewardly-database-${stage}`,
-      description: 'KMS key for Stewardly Aurora cluster',
+      description: 'KMS key for Stewardly PostgreSQL instance',
       enableKeyRotation: true,
       removalPolicy: envConfig.stage === 'prod'
         ? cdk.RemovalPolicy.RETAIN
@@ -47,62 +48,52 @@ export class DatabaseStack extends cdk.Stack {
         : cdk.RemovalPolicy.DESTROY,
     })
 
-    // Aurora Serverless v2 PostgreSQL cluster
-    this.cluster = new rds.DatabaseCluster(this, 'AuroraCluster', {
-      clusterIdentifier: `stewardly-${stage}`,
-      engine: rds.DatabaseClusterEngine.auroraPostgres({
-        version: rds.AuroraPostgresEngineVersion.VER_15_4,
+    // RDS PostgreSQL — db.t3.micro is free-tier eligible (750 hrs/month for 12 months)
+    this.instance = new rds.DatabaseInstance(this, 'Database', {
+      engine: rds.DatabaseInstanceEngine.postgres({
+        version: rds.PostgresEngineVersion.VER_16,
       }),
+      instanceType: envConfig.stage === 'prod'
+        ? ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MEDIUM)
+        : ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
+      vpc,
+      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
+      securityGroups: [databaseSg],
+      databaseName: 'stewardly',
       credentials: rds.Credentials.fromGeneratedSecret('stewardly_admin', {
         secretName: `stewardly/${stage}/db-credentials`,
         encryptionKey: this.kmsKey,
       }),
-      serverlessV2MinCapacity: envConfig.auroraMinAcu,
-      serverlessV2MaxCapacity: envConfig.auroraMaxAcu,
-      writer: rds.ClusterInstance.serverlessV2('Writer', {
-        enablePerformanceInsights: envConfig.stage !== 'dev',
-        publiclyAccessible: false,
-      }),
-      readers: envConfig.auroraMultiAz
-        ? [
-            rds.ClusterInstance.serverlessV2('Reader', {
-              scaleWithWriter: true,
-              enablePerformanceInsights: true,
-            }),
-          ]
-        : [],
-      vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_ISOLATED },
-      securityGroups: [databaseSg],
-      defaultDatabaseName: 'stewardly',
       storageEncrypted: true,
       storageEncryptionKey: this.kmsKey,
-      enableDataApi: true,
+      backupRetention: envConfig.stage === 'prod'
+        ? cdk.Duration.days(30)
+        : cdk.Duration.days(1),
       deletionProtection: envConfig.stage === 'prod',
       removalPolicy: envConfig.stage === 'prod'
         ? cdk.RemovalPolicy.RETAIN
         : cdk.RemovalPolicy.DESTROY,
-      backup: {
-        retention: envConfig.stage === 'prod' ? cdk.Duration.days(30) : cdk.Duration.days(7),
-      },
+      multiAz: envConfig.auroraMultiAz,
+      autoMinorVersionUpgrade: true,
+      // Performance Insights only on prod (additional cost on free tier)
+      enablePerformanceInsights: envConfig.stage === 'prod',
       cloudwatchLogsExports: ['postgresql'],
       cloudwatchLogsRetention: envConfig.stage === 'prod'
         ? logs.RetentionDays.THREE_MONTHS
         : logs.RetentionDays.ONE_MONTH,
     })
 
-    this.secret = this.cluster.secret!
+    this.secret = this.instance.secret!
 
-    // Migration Lambda (runs SQL from services/shared/migrations)
-    const migrationLambdaRole = new cdk.aws_iam.Role(this, 'MigrationLambdaRole', {
-      assumedBy: new cdk.aws_iam.ServicePrincipal('lambda.amazonaws.com'),
+    // Migration Lambda — placeholder; run actual migrations manually via DEPLOYMENT.md
+    const migrationLambdaRole = new iam.Role(this, 'MigrationLambdaRole', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
       managedPolicies: [
-        cdk.aws_iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaVPCAccessExecutionRole'),
       ],
     })
 
     this.secret.grantRead(migrationLambdaRole)
-    this.cluster.grantDataApiAccess(migrationLambdaRole)
     this.kmsKey.grantDecrypt(migrationLambdaRole)
 
     const migrationLogGroup = new logs.LogGroup(this, 'MigrationLogs', {
@@ -116,11 +107,9 @@ export class DatabaseStack extends cdk.Stack {
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'index.handler',
       code: lambda.Code.fromInline(`
-        const { RDSDataClient, ExecuteStatementCommand } = require('@aws-sdk/client-rds-data');
         exports.handler = async (event) => {
           console.log('Migration Lambda triggered', JSON.stringify(event));
-          // Full migration code is in services/shared/migration/
-          return { statusCode: 200, body: 'Migration Lambda placeholder - deploy with actual code' };
+          return { statusCode: 200, body: 'Run migrations via psql — see DEPLOYMENT.md' };
         };
       `),
       role: migrationLambdaRole,
@@ -129,17 +118,23 @@ export class DatabaseStack extends cdk.Stack {
       timeout: cdk.Duration.minutes(5),
       environment: {
         STAGE: stage,
-        DB_CLUSTER_ARN: this.cluster.clusterArn,
         DB_SECRET_ARN: this.secret.secretArn,
         DB_NAME: 'stewardly',
+        DB_HOST: this.instance.dbInstanceEndpointAddress,
+        DB_PORT: this.instance.dbInstanceEndpointPort,
       },
       logGroup: migrationLogGroup,
     })
 
     // Outputs
-    new cdk.CfnOutput(this, 'ClusterArn', {
-      value: this.cluster.clusterArn,
-      exportName: `stewardly-db-cluster-arn-${stage}`,
+    new cdk.CfnOutput(this, 'DbEndpoint', {
+      value: this.instance.dbInstanceEndpointAddress,
+      exportName: `stewardly-db-endpoint-${stage}`,
+    })
+
+    new cdk.CfnOutput(this, 'DbPort', {
+      value: this.instance.dbInstanceEndpointPort,
+      exportName: `stewardly-db-port-${stage}`,
     })
 
     new cdk.CfnOutput(this, 'SecretArn', {

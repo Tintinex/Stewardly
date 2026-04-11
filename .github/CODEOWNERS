@@ -1,0 +1,9 @@
+# Default owner for everything
+* @Tintinex
+
+# Infrastructure changes require extra review
+/infra/ @Tintinex
+/.github/workflows/ @Tintinex
+
+# Database migrations are high-risk — always need review
+/db/migrations/ @Tintinex
