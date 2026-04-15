@@ -16,7 +16,7 @@ interface AuthContextValue {
   hoaId: string | null
   role: UserRole | null
   isLoading: boolean
-  signIn: (email: string, password: string) => Promise<void>
+  signIn: (email: string, password: string) => Promise<AuthUser | null>
   signOut: () => Promise<void>
 }
 
@@ -36,23 +36,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const loadUser = useCallback(async () => {
+  const loadUser = useCallback(async (): Promise<AuthUser | null> => {
     try {
       if (config.useMock) {
         // Auto-sign in as board admin in mock mode
         const u = await api.getCurrentUser()
         setUser(u)
+        return u
       } else {
         const session = await fetchAuthSession()
         if (session.tokens) {
           const u = await api.getCurrentUser()
           setUser(u)
+          return u
         } else {
           setUser(null)
+          return null
         }
       }
     } catch {
       setUser(null)
+      return null
     } finally {
       setIsLoading(false)
     }
@@ -62,9 +66,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     void loadUser()
   }, [loadUser])
 
-  const signIn = useCallback(async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string): Promise<AuthUser | null> => {
     await api.signIn(email, password)
-    await loadUser()
+    return loadUser()
   }, [loadUser])
 
   const signOut = useCallback(async () => {

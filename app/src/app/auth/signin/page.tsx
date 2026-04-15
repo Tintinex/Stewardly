@@ -2,15 +2,16 @@
 
 import React, { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 
 export default function SignInPage() {
-  const { signIn } = useAuth()
+  const { signIn, user } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -18,13 +19,23 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  function getRedirectPath(role: string): string {
+    // If middleware set a returnUrl (e.g., tried to access /admin/...), honour it
+    const returnUrl = searchParams.get('returnUrl')
+    if (returnUrl && returnUrl.startsWith('/')) return returnUrl
+
+    // Otherwise route by role
+    if (role === 'superadmin') return '/admin/hoas'
+    return '/dashboard'
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setIsLoading(true)
     try {
-      await signIn(email, password)
-      router.push('/dashboard')
+      const loggedInUser = await signIn(email, password)
+      router.push(getRedirectPath(loggedInUser?.role ?? 'homeowner'))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid email or password. Please try again.')
     } finally {
