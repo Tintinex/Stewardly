@@ -19,6 +19,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return <FullPageSpinner />
   }
 
+  // Superadmins have no hoaId — send them to the admin console
+  if (user.role === 'superadmin') {
+    router.replace('/admin/hoas')
+    return <FullPageSpinner />
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Desktop sidebar */}

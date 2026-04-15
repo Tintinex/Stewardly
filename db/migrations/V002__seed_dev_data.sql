@@ -285,7 +285,7 @@ VALUES
 INSERT INTO accounts (id, hoa_id, institution_name, account_name, account_type, balance, last_synced_at)
 VALUES
   (
-    'g1000001-0000-0000-0000-000000000001',
+    'ac000001-0000-0000-0000-000000000001',
     'a1b2c3d4-0001-0001-0001-000000000001',
     'First Citizens Bank',
     'HOA Operating Account',
@@ -294,7 +294,7 @@ VALUES
     NOW()
   ),
   (
-    'g1000002-0000-0000-0000-000000000002',
+    'ac000002-0000-0000-0000-000000000002',
     'a1b2c3d4-0001-0001-0001-000000000001',
     'First Citizens Bank',
     'HOA Reserve Fund',
@@ -306,13 +306,13 @@ VALUES
 -- Recent transactions
 INSERT INTO transactions (id, hoa_id, account_id, amount, description, category, date, type)
 VALUES
-  (gen_random_uuid(), 'a1b2c3d4-0001-0001-0001-000000000001', 'g1000001-0000-0000-0000-000000000001', -3200.00,  'Green Thumb Landscaping — July',    'Landscaping',      '2024-07-15', 'debit'),
-  (gen_random_uuid(), 'a1b2c3d4-0001-0001-0001-000000000001', 'g1000001-0000-0000-0000-000000000001', -1840.00,  'Duke Energy — Common Areas',        'Utilities',        '2024-07-12', 'debit'),
-  (gen_random_uuid(), 'a1b2c3d4-0001-0001-0001-000000000001', 'g1000001-0000-0000-0000-000000000001',  48200.00, 'Monthly Dues Collection — July',    'Income',           '2024-07-01', 'credit'),
-  (gen_random_uuid(), 'a1b2c3d4-0001-0001-0001-000000000001', 'g1000001-0000-0000-0000-000000000001', -980.00,   'Aqua Pool Services — Monthly',      'Pool & Amenities', '2024-07-08', 'debit'),
-  (gen_random_uuid(), 'a1b2c3d4-0001-0001-0001-000000000001', 'g1000001-0000-0000-0000-000000000001', -450.00,   'City of Raleigh — Trash Collection', 'Utilities',       '2024-07-05', 'debit'),
-  (gen_random_uuid(), 'a1b2c3d4-0001-0001-0001-000000000001', 'g1000001-0000-0000-0000-000000000001', -2900.00,  'ABC Asphalt — Pothole Estimate',    'Maintenance',      '2024-07-22', 'debit'),
-  (gen_random_uuid(), 'a1b2c3d4-0001-0001-0001-000000000001', 'g1000002-0000-0000-0000-000000000002',  2500.00,  'Reserve Fund Contribution — July',  'Reserve',          '2024-07-01', 'credit');
+  (gen_random_uuid(), 'a1b2c3d4-0001-0001-0001-000000000001', 'ac000001-0000-0000-0000-000000000001', -3200.00,  'Green Thumb Landscaping — July',    'Landscaping',      '2024-07-15', 'debit'),
+  (gen_random_uuid(), 'a1b2c3d4-0001-0001-0001-000000000001', 'ac000001-0000-0000-0000-000000000001', -1840.00,  'Duke Energy — Common Areas',        'Utilities',        '2024-07-12', 'debit'),
+  (gen_random_uuid(), 'a1b2c3d4-0001-0001-0001-000000000001', 'ac000001-0000-0000-0000-000000000001',  48200.00, 'Monthly Dues Collection — July',    'Income',           '2024-07-01', 'credit'),
+  (gen_random_uuid(), 'a1b2c3d4-0001-0001-0001-000000000001', 'ac000001-0000-0000-0000-000000000001', -980.00,   'Aqua Pool Services — Monthly',      'Pool & Amenities', '2024-07-08', 'debit'),
+  (gen_random_uuid(), 'a1b2c3d4-0001-0001-0001-000000000001', 'ac000001-0000-0000-0000-000000000001', -450.00,   'City of Raleigh — Trash Collection', 'Utilities',       '2024-07-05', 'debit'),
+  (gen_random_uuid(), 'a1b2c3d4-0001-0001-0001-000000000001', 'ac000001-0000-0000-0000-000000000001', -2900.00,  'ABC Asphalt — Pothole Estimate',    'Maintenance',      '2024-07-22', 'debit'),
+  (gen_random_uuid(), 'a1b2c3d4-0001-0001-0001-000000000001', 'ac000002-0000-0000-0000-000000000002',  2500.00,  'Reserve Fund Contribution — July',  'Reserve',          '2024-07-01', 'credit');
 
 -- Monthly assessments (dues) for current residents
 INSERT INTO assessments (id, hoa_id, unit_id, amount, due_date, paid_date, status)
@@ -322,7 +322,7 @@ SELECT
   u.id,
   2008.33,  -- $48,200 / 24 units
   '2024-07-01',
-  CASE WHEN u.unit_number NOT IN ('10', '15') THEN '2024-07-01' ELSE NULL END,
+  CASE WHEN u.unit_number NOT IN ('10', '15') THEN '2024-07-01'::date ELSE NULL END,
   CASE WHEN u.unit_number NOT IN ('10', '15') THEN 'paid' ELSE 'pending' END
 FROM units u
 WHERE u.hoa_id = 'a1b2c3d4-0001-0001-0001-000000000001';
