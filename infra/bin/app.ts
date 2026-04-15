@@ -7,6 +7,7 @@ import { DatabaseStack } from '../lib/stacks/database-stack'
 import { AuthStack } from '../lib/stacks/auth-stack'
 import { ApiStack } from '../lib/stacks/api-stack'
 import { WebStack } from '../lib/stacks/web-stack'
+import { MigrationStack } from '../lib/stacks/migration-stack'
 import { environments } from '../lib/config/environments'
 
 const app = new cdk.App()
@@ -85,8 +86,24 @@ new WebStack(app, `StewardlyWeb-${stage}`, {
   tags,
 })
 
+const migration = new MigrationStack(app, `StewardlyMigration-${stage}`, {
+  env,
+  stage,
+  envConfig,
+  vpc: network.vpc,
+  lambdaSg: network.lambdaSg,
+  dbInstance: database.instance,
+  dbSecret: database.secret,
+  dbKmsKey: database.kmsKey,
+  storageKmsKey: storage.kmsKey,
+  bucket: storage.bucket,
+  tags,
+})
+
 // Dependencies
 database.addDependency(network)
+migration.addDependency(database)
+migration.addDependency(storage)
 api.addDependency(database)
 api.addDependency(auth)
 api.addDependency(storage)

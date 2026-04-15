@@ -11,6 +11,7 @@ interface StorageStackProps extends cdk.StackProps {
 
 export class StorageStack extends cdk.Stack {
   public readonly bucket: s3.Bucket
+  public readonly kmsKey: kms.Key
 
   constructor(scope: Construct, id: string, props: StorageStackProps) {
     super(scope, id, props)
@@ -18,7 +19,7 @@ export class StorageStack extends cdk.Stack {
     const { stage, envConfig } = props
 
     // KMS key for S3 encryption
-    const storageKey = new kms.Key(this, 'StorageKey', {
+    this.kmsKey = new kms.Key(this, 'StorageKey', {
       alias: `stewardly-storage-${stage}`,
       description: 'KMS key for Stewardly S3 documents bucket',
       enableKeyRotation: true,
@@ -32,7 +33,7 @@ export class StorageStack extends cdk.Stack {
       bucketName: `stewardly-documents-${cdk.Aws.ACCOUNT_ID}-${stage}`,
       versioned: true,
       encryption: s3.BucketEncryption.KMS,
-      encryptionKey: storageKey,
+      encryptionKey: this.kmsKey,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       enforceSSL: true,
       removalPolicy: envConfig.stage === 'prod'

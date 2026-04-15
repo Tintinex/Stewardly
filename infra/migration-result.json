@@ -1,0 +1,1 @@
+{"success":true,"results":[{"version":"V001","status":"skipped"},{"version":"V002","status":"applied","filename":"V002__seed_dev_data.sql"},{"version":"V003","status":"applied","filename":"V003__admin_panel.sql"}]}
