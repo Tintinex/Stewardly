@@ -1,4 +1,4 @@
-import { query, queryOne } from '../../shared/db/client'
+import { query, queryOne, param } from '../../shared/db/client'
 import type {
   HoaSummary, HoaDetail, PlatformStats, BillingOverview, UpdateHoaInput,
 } from './types'
@@ -54,18 +54,24 @@ export async function getHoa(hoaId: string): Promise<HoaDetail | null> {
     LEFT JOIN subscriptions s ON s.hoa_id = h.id
     LEFT JOIN owners o ON o.hoa_id = h.id
     LEFT JOIN units u ON u.hoa_id = h.id
-    WHERE h.id = $1
+    WHERE h.id = :hoaId
     GROUP BY h.id, h.name, h.address, h.city, h.state, h.created_at,
              s.tier, s.status, s.trial_ends_at, s.current_period_end
-  `, [hoaId])
+  `, [param.string('hoaId', hoaId)])
 }
 
 export async function updateHoa(hoaId: string, input: UpdateHoaInput): Promise<HoaDetail | null> {
   if (input.name) {
-    await query('UPDATE hoas SET name = $1, updated_at = NOW() WHERE id = $2', [input.name, hoaId])
+    await query(
+      'UPDATE hoas SET name = :name, updated_at = NOW() WHERE id = :hoaId',
+      [param.string('name', input.name), param.string('hoaId', hoaId)],
+    )
   }
   if (input.subscriptionTier) {
-    await query('UPDATE subscriptions SET tier = $1 WHERE hoa_id = $2', [input.subscriptionTier, hoaId])
+    await query(
+      'UPDATE subscriptions SET tier = :tier WHERE hoa_id = :hoaId',
+      [param.string('tier', input.subscriptionTier), param.string('hoaId', hoaId)],
+    )
   }
   return getHoa(hoaId)
 }
@@ -82,9 +88,9 @@ export async function listUsers(hoaId?: string): Promise<Array<{
              o.hoa_id, h.name AS hoa_name, o.created_at
       FROM owners o
       LEFT JOIN hoas h ON h.id = o.hoa_id
-      WHERE o.hoa_id = $1
+      WHERE o.hoa_id = :hoaId
       ORDER BY o.created_at DESC
-    `, [hoaId])
+    `, [param.string('hoaId', hoaId)])
   }
   return query(`
     SELECT o.id, o.email, o.first_name, o.last_name, o.role,
@@ -210,6 +216,12 @@ export async function writeAuditLog(
 ): Promise<void> {
   await query(`
     INSERT INTO superadmin_audit_log (admin_user_id, action, target_type, target_id, payload_json, created_at)
-    VALUES ($1, $2, $3, $4, $5, NOW())
-  `, [adminUserId, action, targetType, targetId, JSON.stringify(payload)])
+    VALUES (:adminUserId, :action, :targetType, :targetId, :payloadJson, NOW())
+  `, [
+    param.string('adminUserId', adminUserId),
+    param.string('action', action),
+    param.string('targetType', targetType),
+    param.string('targetId', targetId),
+    param.string('payloadJson', JSON.stringify(payload)),
+  ])
 }

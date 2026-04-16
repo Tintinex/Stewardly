@@ -76,7 +76,8 @@ function namedToPositional(
   const nameToIndex = new Map<string, number>()
   const values: unknown[] = []
 
-  const text = sql.replace(/:([a-zA-Z]\w*)/g, (_, name: string) => {
+  // Negative lookbehind (?<!:) prevents matching ::type PostgreSQL cast syntax
+  const text = sql.replace(/(?<!:):([a-zA-Z]\w*)/g, (_, name: string) => {
     if (!nameToIndex.has(name)) {
       const p = params.find(item => item.name === name)
       if (p === undefined) throw new Error(`[db/client] Unknown SQL parameter: :${name}`)
