@@ -21,12 +21,14 @@ const roleBadgeVariant: Record<UserRole, 'default' | 'info' | 'success'> = {
   board_admin:  'success',
   board_member: 'info',
   homeowner:    'default',
+  superadmin:   'success',
 }
 
 const roleLabel: Record<UserRole, string> = {
   board_admin:  'Board Admin',
   board_member: 'Board Member',
   homeowner:    'Homeowner',
+  superadmin:   'Superadmin',
 }
 
 export default function ResidentsPage() {

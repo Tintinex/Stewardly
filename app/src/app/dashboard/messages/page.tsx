@@ -170,7 +170,7 @@ export default function MessagesPage() {
               <Spinner size="sm" />
             </div>
           ) : threads.length === 0 ? (
-            <EmptyState title="No threads yet" description="Start a conversation." className="py-8" />
+            <EmptyState title="No threads yet" description="Start a conversation." />
           ) : (
             <ul className="divide-y divide-gray-50">
               {threads.map(thread => (
