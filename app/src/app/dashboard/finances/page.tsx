@@ -18,23 +18,28 @@ import type { Financials } from '@/types'
 import { clsx } from 'clsx'
 
 export default function FinancesPage() {
-  const { hoaId } = useAuth()
+  const { hoaId, isLoading: authLoading } = useAuth()
   const [data, setData] = useState<Financials | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [plaidModalOpen, setPlaidModalOpen] = useState(false)
 
   useEffect(() => {
-    if (!hoaId) return
-    api.getFinancials(hoaId).then(setData).finally(() => setIsLoading(false))
-  }, [hoaId])
+    if (authLoading) return
+    api.getFinancials(hoaId ?? '')
+      .then(setData)
+      .catch(console.error)
+      .finally(() => setIsLoading(false))
+  }, [authLoading, hoaId])
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>
   }
 
   if (!data) return null
 
-  const ytdPercent = Math.round((data.ytdExpenses / data.totalBudget) * 100)
+  const ytdPercent = data.totalBudget > 0
+    ? Math.round((data.ytdExpenses / data.totalBudget) * 100)
+    : 0
   const remaining = data.totalBudget - data.ytdExpenses
 
   return (
