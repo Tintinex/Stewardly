@@ -5,7 +5,7 @@
  */
 import { Pool } from 'pg'
 import * as pgTypes from 'pg'
-import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager'
+import { SecretsManagerClient, GetSecretValueCommand, type GetSecretValueCommandOutput } from '@aws-sdk/client-secrets-manager'
 
 // ─── Type parsers ─────────────────────────────────────────────────────────────
 // pg returns NUMERIC as string and TIMESTAMP as Date by default.
@@ -39,7 +39,7 @@ async function getPool(): Promise<Pool> {
   const sm = new SecretsManagerClient({ region: process.env.AWS_REGION ?? 'us-east-1' })
   const result = await sm.send(
     new GetSecretValueCommand({ SecretId: process.env.DB_SECRET_ARN ?? '' }),
-  )
+  ) as GetSecretValueCommandOutput
   const creds = JSON.parse(result.SecretString ?? '{}') as DbSecret
 
   _pool = new Pool({

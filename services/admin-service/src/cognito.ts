@@ -5,6 +5,8 @@ import {
   AdminEnableUserCommand,
   AdminResetUserPasswordCommand,
   AdminUpdateUserAttributesCommand,
+  type UserType,
+  type AttributeType,
 } from '@aws-sdk/client-cognito-identity-provider'
 
 const client = new CognitoIdentityProviderClient({ region: process.env.AWS_REGION ?? 'us-east-1' })
@@ -29,9 +31,9 @@ export async function listCognitoUsers(hoaId?: string): Promise<CognitoUser[]> {
   })
 
   const res = await client.send(cmd)
-  return (res.Users ?? []).map(u => ({
+  return (res.Users ?? []).map((u: UserType) => ({
     username: u.Username ?? '',
-    email: u.Attributes?.find(a => a.Name === 'email')?.Value ?? '',
+    email: u.Attributes?.find((a: AttributeType) => a.Name === 'email')?.Value ?? '',
     status: u.Enabled ? 'active' : 'disabled',
     enabled: u.Enabled ?? false,
   }))

@@ -1,5 +1,5 @@
-import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager'
-import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3'
+import { SecretsManagerClient, GetSecretValueCommand, type GetSecretValueCommandOutput } from '@aws-sdk/client-secrets-manager'
+import { S3Client, ListObjectsV2Command, GetObjectCommand, type ListObjectsV2CommandOutput, type GetObjectCommandOutput } from '@aws-sdk/client-s3'
 import { Client } from 'pg'
 import { Readable } from 'stream'
 
@@ -7,7 +7,7 @@ const sm = new SecretsManagerClient({ region: process.env.AWS_REGION })
 const s3 = new S3Client({ region: process.env.AWS_REGION })
 
 async function getSecret(arn: string): Promise<{ username: string; password: string }> {
-  const res = await sm.send(new GetSecretValueCommand({ SecretId: arn }))
+  const res = await sm.send(new GetSecretValueCommand({ SecretId: arn })) as GetSecretValueCommandOutput
   return JSON.parse(res.SecretString ?? '{}')
 }
 
@@ -21,15 +21,15 @@ async function streamToString(stream: Readable): Promise<string> {
 }
 
 async function listMigrationFiles(bucket: string): Promise<string[]> {
-  const res = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: 'migrations/V' }))
+  const res = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: 'migrations/V' })) as ListObjectsV2CommandOutput
   return (res.Contents ?? [])
-    .map(o => o.Key ?? '')
-    .filter(k => k.endsWith('.sql'))
+    .map((o) => o.Key ?? '')
+    .filter((k) => k.endsWith('.sql'))
     .sort()
 }
 
 async function readMigrationFile(bucket: string, key: string): Promise<string> {
-  const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }))
+  const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key })) as GetObjectCommandOutput
   return streamToString(res.Body as Readable)
 }
 
