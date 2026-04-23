@@ -31,7 +31,7 @@ const statusLabel: Record<TaskStatus, string> = {
 }
 
 export default function TasksPage() {
-  const { hoaId } = useAuth()
+  const { hoaId, isLoading: authLoading } = useAuth()
   const [tasks, setTasks] = useState<Task[]>([])
   const [residents, setResidents] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -56,8 +56,9 @@ export default function TasksPage() {
   }, [hoaId])
 
   useEffect(() => {
+    if (authLoading) return
     loadTasks().finally(() => setIsLoading(false))
-  }, [loadTasks])
+  }, [authLoading, loadTasks])
 
   const filteredTasks = tasks.filter(t => filter === 'all' || t.status === filter)
 
@@ -121,7 +122,7 @@ export default function TasksPage() {
     { key: 'done', label: 'Done' },
   ]
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>
   }
 

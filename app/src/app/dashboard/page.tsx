@@ -37,16 +37,20 @@ function priorityBadge(priority: TaskPriority) {
 }
 
 export default function DashboardPage() {
-  const { hoaId } = useAuth()
+  const { hoaId, isLoading: authLoading } = useAuth()
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    if (!hoaId) return
-    api.getDashboard(hoaId).then(setData).finally(() => setIsLoading(false))
-  }, [hoaId])
+    if (authLoading) return
+    if (!hoaId) { setIsLoading(false); return }
+    api.getDashboard(hoaId)
+      .then(setData)
+      .catch(console.error)
+      .finally(() => setIsLoading(false))
+  }, [authLoading, hoaId])
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Spinner size="lg" />

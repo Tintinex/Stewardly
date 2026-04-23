@@ -16,7 +16,7 @@ import type { Board, Thread, Post } from '@/types'
 import { clsx } from 'clsx'
 
 export default function MessagesPage() {
-  const { hoaId, role } = useAuth()
+  const { hoaId, role, isLoading: authLoading } = useAuth()
   const [boards, setBoards] = useState<Board[]>([])
   const [threads, setThreads] = useState<Thread[]>([])
   const [posts, setPosts] = useState<Post[]>([])
@@ -35,7 +35,8 @@ export default function MessagesPage() {
 
   // Load boards
   useEffect(() => {
-    if (!hoaId) return
+    if (authLoading) return
+    if (!hoaId) { setIsLoading(false); return }
     api.getBoards(hoaId).then(data => {
       // Filter board_only boards for homeowners
       const visible = role === 'homeowner'
@@ -44,7 +45,7 @@ export default function MessagesPage() {
       setBoards(visible)
       if (visible.length > 0) setSelectedBoard(visible[0])
     }).finally(() => setIsLoading(false))
-  }, [hoaId, role])
+  }, [authLoading, hoaId, role])
 
   // Load threads when board changes
   useEffect(() => {
@@ -110,7 +111,7 @@ export default function MessagesPage() {
     }
   }
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>
   }
 

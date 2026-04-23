@@ -15,7 +15,7 @@ import type { Meeting, CreateMeetingPayload } from '@/types'
 import { clsx } from 'clsx'
 
 export default function MeetingsPage() {
-  const { hoaId } = useAuth()
+  const { hoaId, isLoading: authLoading } = useAuth()
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -39,8 +39,9 @@ export default function MeetingsPage() {
   }, [hoaId])
 
   useEffect(() => {
+    if (authLoading) return
     loadMeetings().finally(() => setIsLoading(false))
-  }, [loadMeetings])
+  }, [authLoading, loadMeetings])
 
   const upcoming = meetings.filter(m => m.status === 'scheduled' || isFuture(parseISO(m.scheduledAt)))
   const past = meetings.filter(m => m.status === 'completed' || m.status === 'cancelled')
@@ -92,7 +93,7 @@ export default function MeetingsPage() {
     }
   }
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>
   }
 

@@ -32,7 +32,7 @@ const roleLabel: Record<UserRole, string> = {
 }
 
 export default function ResidentsPage() {
-  const { hoaId } = useAuth()
+  const { hoaId, isLoading: authLoading } = useAuth()
   const [residents, setResidents] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -57,8 +57,9 @@ export default function ResidentsPage() {
   }, [hoaId])
 
   useEffect(() => {
+    if (authLoading) return
     loadResidents().finally(() => setIsLoading(false))
-  }, [loadResidents])
+  }, [authLoading, loadResidents])
 
   const filtered = residents.filter(r => {
     const matchesSearch =
@@ -112,7 +113,7 @@ export default function ResidentsPage() {
     { key: 'homeowner', label: 'Homeowners' },
   ]
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>
   }
 
