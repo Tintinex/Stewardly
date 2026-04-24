@@ -25,7 +25,7 @@ function SignInForm() {
     const returnUrl = searchParams.get('returnUrl')
     if (returnUrl && returnUrl.startsWith('/')) return returnUrl
     // Route by role
-    if (role === 'superadmin') return '/admin/hoas'
+    if (role === 'superadmin') return '/admin/dashboard'
     return '/dashboard'
   }
 
@@ -35,6 +35,12 @@ function SignInForm() {
     setIsLoading(true)
     try {
       const loggedInUser = await signIn(email, password)
+      // Set the middleware cookie BEFORE navigating to /admin/* — the middleware
+      // checks this cookie to gate the route, and AdminLayout hasn't rendered yet
+      // to set it, so we'd loop back to sign-in without this.
+      if (loggedInUser?.role === 'superadmin') {
+        document.cookie = 'stewardly-admin-verified=1; path=/; SameSite=Strict'
+      }
       router.push(getRedirectPath(loggedInUser?.role ?? 'homeowner'))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid email or password. Please try again.')

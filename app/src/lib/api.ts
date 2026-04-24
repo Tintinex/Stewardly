@@ -85,7 +85,14 @@ export async function signIn(email: string, password: string): Promise<void> {
   // Clear any stale session so we never hit "There is already a signed in user"
   try { await amplifySignOut() } catch { /* no session — that's fine */ }
 
-  await amplifySignIn({ username: email, password })
+  const result = await amplifySignIn({ username: email, password })
+  if (!result.isSignedIn) {
+    const step = result.nextStep?.signInStep ?? 'UNKNOWN'
+    if (step === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+      throw new Error('Your account requires a password reset. Please contact support.')
+    }
+    throw new Error(`Sign-in requires an additional step: ${step}`)
+  }
 }
 
 export async function signOut(): Promise<void> {

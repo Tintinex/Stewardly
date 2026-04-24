@@ -21,7 +21,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setVerified(true)
       })
       .catch(() => {
-        router.replace('/auth/signin?returnUrl=/admin/hoas')
+        router.replace('/auth/signin?returnUrl=/admin/dashboard')
       })
   }, [router])
 
