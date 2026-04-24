@@ -7,6 +7,8 @@ import { handleEnsureOwner } from './handlers/ensure-owner'
 import { handleMyUnit } from './handlers/my-unit'
 import { handleListMaintenance } from './handlers/list-maintenance'
 import { handleCreateMaintenance } from './handlers/create-maintenance'
+import { handleListDocuments } from './handlers/list-documents'
+import { handleCreateDocument } from './handlers/create-document'
 
 export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   const { hoaId, userId, role } = event.requestContext.authorizer.lambda
@@ -34,6 +36,18 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   if (method === 'POST' && path.endsWith('/maintenance-requests')) {
     if (!hoaId) return r.unauthorized()
     return handleCreateMaintenance(event.body ?? null, hoaId, userId)
+  }
+
+  // GET /api/documents
+  if (method === 'GET' && path.endsWith('/documents')) {
+    if (!hoaId) return r.unauthorized()
+    return handleListDocuments(event, hoaId)
+  }
+
+  // POST /api/documents
+  if (method === 'POST' && path.endsWith('/documents')) {
+    if (!hoaId) return r.unauthorized()
+    return handleCreateDocument(event.body ?? null, hoaId, userId, role)
   }
 
   // Remaining routes require hoaId

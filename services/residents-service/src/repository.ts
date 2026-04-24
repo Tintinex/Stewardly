@@ -263,3 +263,68 @@ export async function updateResident(
   )
   return getResident(hoaId, residentId)
 }
+
+// ── Documents ────────────────────────────────────────────────────────────────
+
+export interface DocumentRecord {
+  id: string
+  hoaId: string
+  title: string
+  description: string | null
+  category: string
+  fileUrl: string
+  fileName: string
+  fileSizeBytes: number | null
+  uploadedByName: string
+  createdAt: string
+}
+
+export async function listDocuments(hoaId: string, category?: string): Promise<DocumentRecord[]> {
+  const params = [param.string('hoaId', hoaId)]
+  let sql = `
+    SELECT d.id, d.hoa_id AS "hoaId", d.title, d.description, d.category,
+           d.file_url AS "fileUrl", d.file_name AS "fileName",
+           d.file_size_bytes AS "fileSizeBytes",
+           CONCAT(o.first_name, ' ', o.last_name) AS "uploadedByName",
+           d.created_at AS "createdAt"
+    FROM documents d
+    LEFT JOIN owners o ON o.id = d.uploaded_by
+    WHERE d.hoa_id = :hoaId
+  `
+  if (category) {
+    sql += ' AND d.category = :category'
+    params.push(param.string('category', category))
+  }
+  sql += ' ORDER BY d.created_at DESC'
+  return query<DocumentRecord>(sql, params)
+}
+
+export async function createDocument(input: {
+  hoaId: string
+  title: string
+  description: string | null
+  category: string
+  fileUrl: string
+  fileName: string
+  fileSizeBytes: number | null
+  uploadedBy: string
+}): Promise<DocumentRecord | null> {
+  const row = await queryOne<{ id: string }>(
+    `INSERT INTO documents (id, hoa_id, title, description, category, file_url, file_name, file_size_bytes, uploaded_by)
+     VALUES (gen_random_uuid(), :hoaId, :title, :description, :category, :fileUrl, :fileName, :fileSizeBytes, :uploadedBy)
+     RETURNING id`,
+    [
+      param.string('hoaId', input.hoaId),
+      param.string('title', input.title),
+      param.stringOrNull('description', input.description),
+      param.string('category', input.category),
+      param.string('fileUrl', input.fileUrl),
+      param.string('fileName', input.fileName),
+      param.stringOrNull('fileSizeBytes', input.fileSizeBytes != null ? String(input.fileSizeBytes) : null),
+      param.string('uploadedBy', input.uploadedBy),
+    ],
+  )
+  if (!row?.id) return null
+  const docs = await listDocuments(input.hoaId)
+  return docs.find(d => d.id === row.id) ?? null
+}
