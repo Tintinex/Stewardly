@@ -8,6 +8,7 @@ import type {
   User, Task, Meeting, Board, Thread, Post, DashboardSummary,
   Financials, AuthUser, CreateTaskPayload, UpdateTaskPayload,
   CreateMeetingPayload, CreateResidentPayload, CreatePostPayload,
+  MyUnitData, MaintenanceRequest, CreateMaintenancePayload, DocumentRecord,
 } from '@/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -355,4 +356,67 @@ export async function getFinancials(_hoaId: string): Promise<Financials> {
     return mockFinancials
   }
   return apiFetch<Financials>('/api/finances')
+}
+
+// ─── Resident portal ──────────────────────────────────────────────────────────
+
+/** Validate an HOA invite code before sign-up (public — no auth token required) */
+export async function validateInviteCode(code: string): Promise<{ valid: boolean; hoaName?: string; hoaId?: string; message?: string }> {
+  if (config.useMock) {
+    await delay(300)
+    return { valid: true, hoaId: 'mock-hoa', hoaName: 'Mock HOA Community' }
+  }
+  const res = await fetch(`${config.apiUrl}/auth/validate-invite?code=${encodeURIComponent(code)}`)
+  if (!res.ok) return { valid: false, message: 'Invite code check failed' }
+  return res.json() as Promise<{ valid: boolean; hoaName?: string; hoaId?: string; message?: string }>
+}
+
+/** Called once after first sign-in to create the DB owner record from JWT claims */
+export async function ensureOwner(payload: { firstName: string; lastName: string; email: string; phone?: string; unitNumber?: string }): Promise<AuthUser> {
+  if (config.useMock) {
+    await delay(200)
+    return {} as AuthUser
+  }
+  return apiFetch<AuthUser>('/api/residents/me', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export async function getMyUnit(): Promise<MyUnitData> {
+  if (config.useMock) {
+    await delay(200)
+    return {
+      unit: { id: 'u1', unitNumber: '101', address: '101 Oak Lane', sqft: 1200, bedrooms: 2, bathrooms: 2 },
+      assessments: [],
+      ownerName: 'Demo User',
+      hoaName: 'Mock HOA',
+    }
+  }
+  return apiFetch<MyUnitData>('/api/my-unit')
+}
+
+export async function getMaintenanceRequests(): Promise<MaintenanceRequest[]> {
+  if (config.useMock) { await delay(200); return [] }
+  return apiFetch<MaintenanceRequest[]>('/api/maintenance-requests')
+}
+
+export async function createMaintenanceRequest(payload: CreateMaintenancePayload): Promise<MaintenanceRequest> {
+  if (config.useMock) { await delay(300); return {} as MaintenanceRequest }
+  return apiFetch<MaintenanceRequest>('/api/maintenance-requests', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export async function getDocuments(): Promise<DocumentRecord[]> {
+  if (config.useMock) { await delay(200); return [] }
+  return apiFetch<DocumentRecord[]>('/api/documents')
+}
+
+/** Create a thread in a board (first post included in body) */
+export async function createThread(_hoaId: string, boardId: string, payload: { title: string; body: string }): Promise<Thread> {
+  if (config.useMock) {
+    await delay(300)
+    return {
+      id: `thread-${uuid()}`, boardId, hoaId: _hoaId,
+      title: payload.title, authorId: 'me', authorName: 'You',
+      pinned: false, postCount: 1, lastPostAt: new Date().toISOString(), createdAt: new Date().toISOString(),
+    }
+  }
+  return apiFetch<Thread>(`/api/boards/${boardId}/threads`, { method: 'POST', body: JSON.stringify(payload) })
 }

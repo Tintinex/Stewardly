@@ -130,6 +130,13 @@ export class ApiStack extends cdk.Stack {
       ],
     })
 
+    // Signup Lambda — public (no authorizer), only needs DB to validate invite codes
+    const signupLambda = new SecureLambda(this, 'SignupLambda', {
+      ...commonLambdaProps,
+      functionName: 'signup-service',
+      handler: 'index.handler',
+    })
+
     // Health check Lambda (no auth)
     const healthLambdaRole = new iam.Role(this, 'HealthLambdaRole', {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
@@ -192,6 +199,13 @@ export class ApiStack extends cdk.Stack {
       integration: integration('Health', healthLambda),
     })
 
+    // Public — invite code validation (no authorizer — resident sign-up flow)
+    httpApi.addRoutes({
+      path: '/auth/validate-invite',
+      methods: [apigatewayv2.HttpMethod.GET],
+      integration: integration('ValidateInvite', signupLambda.function),
+    })
+
     // Protected routes — id must be unique per construct and contain no CDK tokens
     const protectedRoutes: Array<{ id: string; path: string; methods: apigatewayv2.HttpMethod[]; fn: lambda.Function }> = [
       { id: 'Dashboard',         path: '/api/dashboard',                methods: [apigatewayv2.HttpMethod.GET],                                    fn: dashboardLambda.function },
@@ -202,20 +216,31 @@ export class ApiStack extends cdk.Stack {
       { id: 'Residents',         path: '/api/residents',                methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],        fn: residentsLambda.function },
       { id: 'ResidentById',      path: '/api/residents/{residentId}',   methods: [apigatewayv2.HttpMethod.PATCH],                                   fn: residentsLambda.function },
       { id: 'Boards',            path: '/api/boards',                   methods: [apigatewayv2.HttpMethod.GET],                                    fn: messagingLambda.function },
-      { id: 'BoardThreads',      path: '/api/boards/{boardId}/threads', methods: [apigatewayv2.HttpMethod.GET],                                    fn: messagingLambda.function },
-      { id: 'ThreadPosts',       path: '/api/threads/{threadId}/posts', methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],        fn: messagingLambda.function },
-      { id: 'Finances',              path: '/api/finances',                              methods: [apigatewayv2.HttpMethod.GET],                                      fn: financesLambda.function },
+      { id: 'BoardThreads',      path: '/api/boards/{boardId}/threads',  methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: messagingLambda.function },
+      { id: 'ThreadPosts',       path: '/api/threads/{threadId}/posts',  methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: messagingLambda.function },
+      { id: 'Finances',          path: '/api/finances',                  methods: [apigatewayv2.HttpMethod.GET],                                     fn: financesLambda.function },
+      // Resident-facing routes
+      { id: 'EnsureOwner',       path: '/api/residents/me',              methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: residentsLambda.function },
+      { id: 'MyUnit',            path: '/api/my-unit',                   methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },
+      { id: 'Maintenance',       path: '/api/maintenance-requests',      methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: residentsLambda.function },
+      { id: 'Documents',         path: '/api/documents',                 methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: residentsLambda.function },
       // Admin routes — superadmin role enforced in the Lambda itself
-      { id: 'AdminHoas',             path: '/api/admin/hoas',                            methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
-      { id: 'AdminHoaById',          path: '/api/admin/hoas/{hoaId}',                   methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.PATCH],          fn: adminLambda.function },
-      { id: 'AdminUsers',            path: '/api/admin/users',                           methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
-      { id: 'AdminUserById',         path: '/api/admin/users/{userId}',                 methods: [apigatewayv2.HttpMethod.PATCH],                                     fn: adminLambda.function },
-      { id: 'AdminUserDisable',      path: '/api/admin/users/{userId}/disable',         methods: [apigatewayv2.HttpMethod.POST],                                      fn: adminLambda.function },
-      { id: 'AdminUserEnable',       path: '/api/admin/users/{userId}/enable',          methods: [apigatewayv2.HttpMethod.POST],                                      fn: adminLambda.function },
-      { id: 'AdminUserReset',        path: '/api/admin/users/{userId}/reset-password',  methods: [apigatewayv2.HttpMethod.POST],                                      fn: adminLambda.function },
-      { id: 'AdminStats',            path: '/api/admin/stats',                          methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
-      { id: 'AdminMonitoring',       path: '/api/admin/monitoring',                     methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
-      { id: 'AdminBilling',          path: '/api/admin/billing',                        methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
+      { id: 'AdminDashboard',         path: '/api/admin/dashboard',                          methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
+      { id: 'AdminHoas',              path: '/api/admin/hoas',                               methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
+      { id: 'AdminHoaInviteCode',     path: '/api/admin/hoas/{hoaId}/invite-code',           methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],         fn: adminLambda.function },
+      { id: 'AdminHoaById',           path: '/api/admin/hoas/{hoaId}',                       methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.PATCH],         fn: adminLambda.function },
+      { id: 'AdminUsers',             path: '/api/admin/users',                              methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
+      { id: 'AdminUserById',          path: '/api/admin/users/{userId}',                     methods: [apigatewayv2.HttpMethod.PATCH],                                    fn: adminLambda.function },
+      { id: 'AdminUserDisable',       path: '/api/admin/users/{userId}/disable',             methods: [apigatewayv2.HttpMethod.POST],                                     fn: adminLambda.function },
+      { id: 'AdminUserEnable',        path: '/api/admin/users/{userId}/enable',              methods: [apigatewayv2.HttpMethod.POST],                                     fn: adminLambda.function },
+      { id: 'AdminUserReset',         path: '/api/admin/users/{userId}/reset-password',      methods: [apigatewayv2.HttpMethod.POST],                                     fn: adminLambda.function },
+      { id: 'AdminStats',             path: '/api/admin/stats',                              methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
+      { id: 'AdminMonitoring',        path: '/api/admin/monitoring',                         methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
+      { id: 'AdminBilling',           path: '/api/admin/billing',                            methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
+      { id: 'AdminSubscriptions',     path: '/api/admin/subscriptions',                      methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
+      { id: 'AdminSubscriptionById',  path: '/api/admin/subscriptions/{hoaId}',              methods: [apigatewayv2.HttpMethod.PATCH],                                    fn: adminLambda.function },
+      { id: 'AdminExtendTrial',       path: '/api/admin/subscriptions/{hoaId}/extend-trial', methods: [apigatewayv2.HttpMethod.POST],                                     fn: adminLambda.function },
+      { id: 'AdminActivity',          path: '/api/admin/activity',                           methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
     ]
 
     for (const route of protectedRoutes) {

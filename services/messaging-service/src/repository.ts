@@ -64,6 +64,53 @@ export async function listPosts(hoaId: string, threadId: string): Promise<Post[]
   )
 }
 
+export async function createThread(
+  hoaId: string,
+  boardId: string,
+  authorId: string,
+  title: string,
+  firstPostBody: string,
+): Promise<Thread | null> {
+  // Insert the thread
+  const threadRow = await queryOne<{ id: string }>(
+    `INSERT INTO threads (id, board_id, hoa_id, title, author_id)
+     VALUES (gen_random_uuid(), :boardId, :hoaId, :title, :authorId)
+     RETURNING id`,
+    [
+      param.string('boardId', boardId),
+      param.string('hoaId', hoaId),
+      param.string('title', title),
+      param.string('authorId', authorId),
+    ],
+  )
+  if (!threadRow?.id) return null
+
+  // Insert the first post
+  await execute(
+    `INSERT INTO posts (id, thread_id, hoa_id, author_id, body)
+     VALUES (gen_random_uuid(), :threadId, :hoaId, :authorId, :body)`,
+    [
+      param.string('threadId', threadRow.id),
+      param.string('hoaId', hoaId),
+      param.string('authorId', authorId),
+      param.string('body', firstPostBody),
+    ],
+  )
+
+  return queryOne<Thread>(
+    `SELECT t.id, t.board_id, t.title, t.author_id,
+            CONCAT(o.first_name, ' ', o.last_name) AS author_name,
+            t.pinned,
+            1::int AS post_count,
+            t.created_at AS last_post_at,
+            t.created_at
+     FROM threads t
+     JOIN owners o ON o.id = t.author_id
+     WHERE t.id = :threadId`,
+    [param.string('threadId', threadRow.id)],
+  )
+}
+
 export async function createPost(hoaId: string, threadId: string, authorId: string, body: string): Promise<Post | null> {
   await execute(
     `INSERT INTO posts (id, thread_id, hoa_id, author_id, body)

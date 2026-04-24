@@ -8,6 +8,7 @@ import { handleBilling } from './handlers/billing'
 import { handleAdminDashboard } from './handlers/dashboard'
 import { handleGetSubscriptions, handleUpdateSubscription, handleExtendTrial } from './handlers/subscriptions'
 import { handleActivity } from './handlers/activity'
+import { handleGetInviteCode, handleRotateInviteCode } from './handlers/invite-code'
 
 export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   const { role, userId } = event.requestContext.authorizer.lambda
@@ -22,6 +23,13 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
 
   // GET /api/admin/hoas
   if (method === 'GET' && path === '/api/admin/hoas') return handleListHoas()
+
+  // GET /api/admin/hoas/:hoaId/invite-code
+  const inviteCodeMatch = path.match(/^\/api\/admin\/hoas\/([^/]+)\/invite-code$/)
+  if (inviteCodeMatch) {
+    if (method === 'GET')  return handleGetInviteCode(inviteCodeMatch[1])
+    if (method === 'POST') return handleRotateInviteCode(inviteCodeMatch[1], userId)
+  }
 
   // GET /api/admin/hoas/:hoaId
   const hoaMatch = path.match(/^\/api\/admin\/hoas\/([^/]+)$/)

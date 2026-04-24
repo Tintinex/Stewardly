@@ -1,4 +1,3 @@
-/// <reference types="node" />
 import type { APIGatewayRequestAuthorizerEventV2, APIGatewaySimpleAuthorizerWithContextResult } from 'aws-lambda'
 import * as https from 'https'
 import * as crypto from 'crypto'

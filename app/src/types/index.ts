@@ -251,6 +251,71 @@ export interface Financials {
   recentTransactions: Transaction[]
 }
 
+// ─── Resident Portal ─────────────────────────────────────────────────────────
+
+export interface MyUnitData {
+  unit: {
+    id: string
+    unitNumber: string
+    address: string
+    sqft: number | null
+    bedrooms: number | null
+    bathrooms: number | null
+  } | null
+  assessments: Assessment[]
+  ownerName: string
+  hoaName: string
+}
+
+export type MaintenanceStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
+export type MaintenancePriority = 'low' | 'normal' | 'urgent'
+export type MaintenanceCategory =
+  | 'plumbing' | 'electrical' | 'hvac' | 'structural'
+  | 'landscaping' | 'pest_control' | 'common_area' | 'other'
+
+export interface MaintenanceRequest {
+  id: string
+  hoaId: string
+  unitId: string
+  unitNumber: string
+  submittedByName: string | null
+  title: string
+  description: string | null
+  category: MaintenanceCategory
+  priority: MaintenancePriority
+  status: MaintenanceStatus
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateMaintenancePayload {
+  title: string
+  description?: string
+  category: MaintenanceCategory
+  priority?: MaintenancePriority
+}
+
+export interface DocumentRecord {
+  id: string
+  hoaId: string
+  title: string
+  description: string | null
+  category: 'general' | 'financial' | 'legal' | 'meeting_minutes' | 'rules' | 'forms'
+  fileUrl: string
+  fileName: string
+  fileSizeBytes: number | null
+  uploadedByName: string | null
+  createdAt: string
+}
+
+export interface InviteCodeInfo {
+  code: string
+  usedCount: number
+  expiresAt: string | null
+  isActive: boolean
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export interface AuthUser {

@@ -1,4 +1,4 @@
-import { query, queryOne, param } from '../../shared/db/client'
+import { query, queryOne, execute, param } from '../../shared/db/client'
 import type {
   HoaSummary, HoaDetail, PlatformStats, BillingOverview, UpdateHoaInput,
   AdminDashboardData, SubscriptionsData, SubscriptionRecord, ActivityData, AuditLogEntry,
@@ -435,6 +435,46 @@ export async function getActivityData(limit: number, offset: number): Promise<Ac
     queryOne<{ count: number }>('SELECT COUNT(*)::int AS count FROM superadmin_audit_log'),
   ])
   return { entries, total: countRow?.count ?? 0 }
+}
+
+// ── Invite codes ─────────────────────────────────────────────────────────────
+
+export async function getInviteCode(hoaId: string): Promise<{
+  code: string; usedCount: number; expiresAt: string | null; createdAt: string
+} | null> {
+  return queryOne(
+    `SELECT code, used_count, expires_at, created_at
+     FROM invite_codes
+     WHERE hoa_id = :hoaId AND is_active = TRUE
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [param.string('hoaId', hoaId)],
+  )
+}
+
+export async function rotateInviteCode(hoaId: string, adminUserId: string): Promise<{
+  code: string; usedCount: number; expiresAt: string | null; createdAt: string
+} | null> {
+  // Deactivate existing active codes for this HOA
+  await execute(
+    `UPDATE invite_codes SET is_active = FALSE WHERE hoa_id = :hoaId AND is_active = TRUE`,
+    [param.string('hoaId', hoaId)],
+  )
+
+  // Insert new invite code: 8 uppercase alphanumeric chars from gen_random_uuid()
+  await execute(
+    `INSERT INTO invite_codes (id, hoa_id, code, created_by, is_active)
+     VALUES (
+       gen_random_uuid(),
+       :hoaId,
+       SUBSTR(UPPER(REPLACE(gen_random_uuid()::text, '-', '')), 1, 8),
+       (SELECT id FROM owners WHERE cognito_sub = :adminUserId LIMIT 1),
+       TRUE
+     )`,
+    [param.string('hoaId', hoaId), param.string('adminUserId', adminUserId)],
+  )
+
+  return getInviteCode(hoaId)
 }
 
 // ── Audit log ────────────────────────────────────────────────────────────────
