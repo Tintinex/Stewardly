@@ -3,6 +3,7 @@ import { getAuthToken } from './amplify'
 import type {
   HoaSummary, HoaDetail, AdminUserRecord,
   PlatformStats, MonitoringData, BillingOverview,
+  AdminDashboardData, SubscriptionsData, ActivityData,
 } from '@/types/admin'
 
 async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -78,4 +79,40 @@ export async function getMonitoringMetrics(): Promise<MonitoringData> {
 
 export async function getBillingOverview(): Promise<BillingOverview> {
   return adminFetch<BillingOverview>('/api/admin/billing')
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+
+export async function getAdminDashboard(): Promise<AdminDashboardData> {
+  return adminFetch<AdminDashboardData>('/api/admin/dashboard')
+}
+
+// ── Subscriptions ─────────────────────────────────────────────────────────────
+
+export async function getSubscriptions(): Promise<SubscriptionsData> {
+  return adminFetch<SubscriptionsData>('/api/admin/subscriptions')
+}
+
+export async function updateSubscriptionTier(hoaId: string, tier: string): Promise<void> {
+  return adminFetch<void>(`/api/admin/subscriptions/${hoaId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ tier }),
+  })
+}
+
+export async function extendTrial(hoaId: string, days: number): Promise<void> {
+  return adminFetch<void>(`/api/admin/subscriptions/${hoaId}/extend-trial`, {
+    method: 'POST',
+    body: JSON.stringify({ days }),
+  })
+}
+
+// ── Activity ──────────────────────────────────────────────────────────────────
+
+export async function getActivityLog(params?: { limit?: number; offset?: number }): Promise<ActivityData> {
+  const qs = new URLSearchParams()
+  if (params?.limit)  qs.set('limit',  String(params.limit))
+  if (params?.offset) qs.set('offset', String(params.offset))
+  const q = qs.toString() ? `?${qs}` : ''
+  return adminFetch<ActivityData>(`/api/admin/activity${q}`)
 }

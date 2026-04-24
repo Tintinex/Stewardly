@@ -1,6 +1,7 @@
 import { query, queryOne, param } from '../../shared/db/client'
 import type {
   HoaSummary, HoaDetail, PlatformStats, BillingOverview, UpdateHoaInput,
+  AdminDashboardData, SubscriptionsData, SubscriptionRecord, ActivityData, AuditLogEntry,
 } from './types'
 
 // ── HOA queries (cross-tenant — superadmin only) ─────────────────────────────
@@ -203,6 +204,237 @@ export async function getBillingData(): Promise<BillingOverview> {
   )
 
   return { hoas, summary }
+}
+
+// ── Admin Dashboard ──────────────────────────────────────────────────────────
+
+export async function getDashboardData(monitoring: {
+  apiGateway5xx: number; dbCpuPercent: number; lambdaMetrics: Array<{ errors: number }>
+}): Promise<AdminDashboardData> {
+
+  const mrrCase = `CASE s.tier WHEN 'starter' THEN 49 WHEN 'growth' THEN 99 WHEN 'pro' THEN 249 ELSE 0 END`
+
+  const [
+    mrrRow,
+    counts,
+    expiringRow,
+    newHoasRow,
+    churnedRow,
+    userRow,
+    recentSignups,
+    trialPipeline,
+    mrrTrend,
+  ] = await Promise.all([
+    // Current MRR
+    queryOne<{ mrr: number }>(`
+      SELECT COALESCE(SUM(${mrrCase})::int, 0) AS mrr
+      FROM subscriptions s WHERE s.status = 'active'
+    `),
+    // Active / trial counts
+    queryOne<{ active: number; trial: number; total: number }>(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'active')::int AS active,
+        COUNT(*) FILTER (WHERE status IN ('trialing','trial'))::int AS trial
+      FROM subscriptions
+    `),
+    // Trial expiring within 7 days
+    queryOne<{ count: number }>(`
+      SELECT COUNT(*)::int AS count FROM subscriptions
+      WHERE status IN ('trialing','trial')
+        AND trial_ends_at BETWEEN NOW() AND NOW() + INTERVAL '7 days'
+    `),
+    // New HOAs this calendar month
+    queryOne<{ count: number }>(`
+      SELECT COUNT(*)::int AS count FROM hoas
+      WHERE created_at >= DATE_TRUNC('month', NOW())
+    `),
+    // Cancelled this month
+    queryOne<{ count: number }>(`
+      SELECT COUNT(*)::int AS count FROM subscriptions
+      WHERE status IN ('cancelled','canceled')
+        AND updated_at >= DATE_TRUNC('month', NOW())
+    `),
+    // Total users
+    queryOne<{ count: number }>('SELECT COUNT(*)::int AS count FROM owners'),
+    // Recent signups (last 30 days)
+    query<{
+      id: string; name: string; city: string; state: string
+      tier: string; status: string; createdAt: string; userCount: number
+    }>(`
+      SELECT h.id, h.name, COALESCE(h.city,'') AS city, COALESCE(h.state,'') AS state,
+             COALESCE(s.tier,'none') AS tier, COALESCE(s.status,'none') AS status,
+             h.created_at AS "createdAt",
+             COUNT(DISTINCT o.id)::int AS "userCount"
+      FROM hoas h
+      LEFT JOIN subscriptions s ON s.hoa_id = h.id
+      LEFT JOIN owners o ON o.hoa_id = h.id
+      WHERE h.created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY h.id, h.name, h.city, h.state, s.tier, s.status
+      ORDER BY h.created_at DESC LIMIT 8
+    `),
+    // Trial pipeline
+    query<{ id: string; name: string; tier: string; trialEndsAt: string; daysLeft: number; userCount: number }>(`
+      SELECT h.id, h.name, COALESCE(s.tier,'none') AS tier,
+             s.trial_ends_at AS "trialEndsAt",
+             GREATEST(0, EXTRACT(DAY FROM s.trial_ends_at - NOW())::int) AS "daysLeft",
+             COUNT(DISTINCT o.id)::int AS "userCount"
+      FROM hoas h
+      JOIN subscriptions s ON s.hoa_id = h.id
+      LEFT JOIN owners o ON o.hoa_id = h.id
+      WHERE s.status IN ('trialing','trial')
+      GROUP BY h.id, h.name, s.tier, s.trial_ends_at
+      ORDER BY s.trial_ends_at ASC
+    `),
+    // MRR trend — last 12 months
+    query<{ month: string; mrr: number }>(`
+      WITH months AS (
+        SELECT generate_series(
+          DATE_TRUNC('month', NOW()) - INTERVAL '11 months',
+          DATE_TRUNC('month', NOW()),
+          '1 month'
+        ) AS m
+      )
+      SELECT TO_CHAR(m.m, 'Mon ''YY') AS month,
+             COALESCE(SUM(${mrrCase})::int, 0) AS mrr
+      FROM months m
+      LEFT JOIN subscriptions s
+        ON s.created_at < m.m + INTERVAL '1 month'
+        AND s.status = 'active'
+      GROUP BY m.m ORDER BY m.m
+    `),
+  ])
+
+  const lambdaErrors = monitoring.lambdaMetrics.reduce((s, f) => s + f.errors, 0)
+  const systemStatus =
+    monitoring.apiGateway5xx > 10 || monitoring.dbCpuPercent > 85 || lambdaErrors > 20
+      ? 'down'
+      : monitoring.apiGateway5xx > 2 || monitoring.dbCpuPercent > 60 || lambdaErrors > 5
+        ? 'degraded'
+        : 'healthy'
+
+  return {
+    mrr: mrrRow?.mrr ?? 0,
+    arr: (mrrRow?.mrr ?? 0) * 12,
+    totalHoas: counts?.total ?? 0,
+    activeSubscriptions: counts?.active ?? 0,
+    trialCount: counts?.trial ?? 0,
+    trialExpiringSoon: expiringRow?.count ?? 0,
+    newHoasThisMonth: newHoasRow?.count ?? 0,
+    churnedThisMonth: churnedRow?.count ?? 0,
+    totalUsers: userRow?.count ?? 0,
+    mrrTrend,
+    recentSignups,
+    trialPipeline,
+    systemHealth: {
+      status: systemStatus,
+      apiErrors5xx: monitoring.apiGateway5xx,
+      dbCpu: monitoring.dbCpuPercent,
+      lambdaErrors,
+    },
+  }
+}
+
+// ── Subscriptions ────────────────────────────────────────────────────────────
+
+export async function getSubscriptionsData(): Promise<SubscriptionsData> {
+  const mrrCase = `CASE s.tier WHEN 'starter' THEN 49 WHEN 'growth' THEN 99 WHEN 'pro' THEN 249 ELSE 0 END`
+
+  const [mrrRow, byTier, mrrHistory, subscriptions] = await Promise.all([
+    queryOne<{ mrr: number }>(`
+      SELECT COALESCE(SUM(${mrrCase})::int, 0) AS mrr
+      FROM subscriptions s WHERE s.status = 'active'
+    `),
+    query<{ tier: string; count: number; mrr: number }>(`
+      SELECT COALESCE(tier,'none') AS tier, COUNT(*)::int AS count,
+             COALESCE(SUM(${mrrCase})::int, 0) AS mrr
+      FROM subscriptions
+      GROUP BY tier ORDER BY mrr DESC
+    `),
+    query<{ month: string; mrr: number }>(`
+      WITH months AS (
+        SELECT generate_series(
+          DATE_TRUNC('month', NOW()) - INTERVAL '11 months',
+          DATE_TRUNC('month', NOW()), '1 month'
+        ) AS m
+      )
+      SELECT TO_CHAR(m.m, 'Mon ''YY') AS month,
+             COALESCE(SUM(${mrrCase})::int, 0) AS mrr
+      FROM months m
+      LEFT JOIN subscriptions s
+        ON s.created_at < m.m + INTERVAL '1 month'
+        AND s.status = 'active'
+      GROUP BY m.m ORDER BY m.m
+    `),
+    query<SubscriptionRecord>(`
+      SELECT h.id AS "hoaId", h.name AS "hoaName",
+             COALESCE(h.city,'') AS city, COALESCE(h.state,'') AS state,
+             COALESCE(s.tier,'none') AS tier,
+             COALESCE(s.status,'none') AS status,
+             COALESCE(${mrrCase}, 0)::int AS mrr,
+             s.trial_ends_at AS "trialEndsAt",
+             s.current_period_end AS "currentPeriodEnd",
+             COUNT(DISTINCT o.id)::int AS "userCount",
+             COUNT(DISTINCT u.id)::int AS "unitCount",
+             h.created_at AS "createdAt"
+      FROM hoas h
+      LEFT JOIN subscriptions s ON s.hoa_id = h.id
+      LEFT JOIN owners o ON o.hoa_id = h.id
+      LEFT JOIN units u ON u.hoa_id = h.id
+      GROUP BY h.id, h.name, h.city, h.state, s.tier, s.status,
+               s.trial_ends_at, s.current_period_end
+      ORDER BY mrr DESC, h.name ASC
+    `),
+  ])
+
+  const mrr = mrrRow?.mrr ?? 0
+  return { mrr, arr: mrr * 12, byTier, mrrHistory, subscriptions }
+}
+
+export async function updateSubscriptionTier(hoaId: string, tier: string): Promise<void> {
+  await query(
+    `UPDATE subscriptions SET tier = :tier, updated_at = NOW() WHERE hoa_id = :hoaId`,
+    [param.string('tier', tier), param.string('hoaId', hoaId)],
+  )
+}
+
+export async function extendTrialDays(hoaId: string, days: number): Promise<void> {
+  await query(
+    `UPDATE subscriptions
+     SET trial_ends_at = COALESCE(trial_ends_at, NOW()) + (:days::int * INTERVAL '1 day'),
+         updated_at = NOW()
+     WHERE hoa_id = :hoaId`,
+    [param.int('days', days), param.string('hoaId', hoaId)],
+  )
+}
+
+// ── Activity log ─────────────────────────────────────────────────────────────
+
+export async function getActivityData(limit: number, offset: number): Promise<ActivityData> {
+  const [entries, countRow] = await Promise.all([
+    query<AuditLogEntry>(`
+      SELECT
+        al.id,
+        al.admin_user_id AS "adminUserId",
+        al.action,
+        al.target_type AS "targetType",
+        al.target_id AS "targetId",
+        CASE
+          WHEN al.target_type = 'hoa'  THEN h.name
+          WHEN al.target_type = 'user' THEN o.email
+          ELSE NULL
+        END AS "targetName",
+        al.payload_json AS "payloadJson",
+        al.created_at AS "createdAt"
+      FROM superadmin_audit_log al
+      LEFT JOIN hoas h  ON h.id  = al.target_id AND al.target_type = 'hoa'
+      LEFT JOIN owners o ON o.id = al.target_id AND al.target_type = 'user'
+      ORDER BY al.created_at DESC
+      LIMIT :limit OFFSET :offset
+    `, [param.string('limit', String(limit)), param.string('offset', String(offset))]),
+    queryOne<{ count: number }>('SELECT COUNT(*)::int AS count FROM superadmin_audit_log'),
+  ])
+  return { entries, total: countRow?.count ?? 0 }
 }
 
 // ── Audit log ────────────────────────────────────────────────────────────────

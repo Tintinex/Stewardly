@@ -80,3 +80,76 @@ export interface UpdateHoaInput {
   name?: string
   subscriptionTier?: string
 }
+
+// Tier pricing (USD/month)
+export const TIER_PRICES: Record<string, number> = {
+  starter: 49,
+  growth: 99,
+  pro: 249,
+}
+
+export interface AdminDashboardData {
+  mrr: number
+  arr: number
+  totalHoas: number
+  activeSubscriptions: number
+  trialCount: number
+  trialExpiringSoon: number
+  newHoasThisMonth: number
+  churnedThisMonth: number
+  totalUsers: number
+  mrrTrend: Array<{ month: string; mrr: number }>
+  recentSignups: Array<{
+    id: string; name: string; city: string; state: string
+    tier: string; status: string; createdAt: string; userCount: number
+  }>
+  trialPipeline: Array<{
+    id: string; name: string; tier: string
+    trialEndsAt: string; daysLeft: number; userCount: number
+  }>
+  systemHealth: {
+    status: 'healthy' | 'degraded' | 'down'
+    apiErrors5xx: number
+    dbCpu: number
+    lambdaErrors: number
+  }
+}
+
+export interface SubscriptionRecord {
+  hoaId: string
+  hoaName: string
+  city: string
+  state: string
+  tier: string
+  status: string
+  mrr: number
+  trialEndsAt: string | null
+  currentPeriodEnd: string | null
+  userCount: number
+  unitCount: number
+  createdAt: string
+}
+
+export interface SubscriptionsData {
+  mrr: number
+  arr: number
+  byTier: Array<{ tier: string; count: number; mrr: number }>
+  mrrHistory: Array<{ month: string; mrr: number }>
+  subscriptions: SubscriptionRecord[]
+}
+
+export interface AuditLogEntry {
+  id: string
+  adminUserId: string
+  action: string
+  targetType: string
+  targetId: string
+  targetName: string | null
+  payloadJson: string
+  createdAt: string
+}
+
+export interface ActivityData {
+  entries: AuditLogEntry[]
+  total: number
+}

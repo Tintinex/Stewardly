@@ -5,6 +5,9 @@ import { handleListUsers, handleDisableUser, handleEnableUser, handleResetPasswo
 import { handlePlatformStats } from './handlers/stats'
 import { handleMonitoring } from './handlers/monitoring'
 import { handleBilling } from './handlers/billing'
+import { handleAdminDashboard } from './handlers/dashboard'
+import { handleGetSubscriptions, handleUpdateSubscription, handleExtendTrial } from './handlers/subscriptions'
+import { handleActivity } from './handlers/activity'
 
 export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   const { role, userId } = event.requestContext.authorizer.lambda
@@ -57,6 +60,23 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
 
   // GET /api/admin/billing
   if (method === 'GET' && path === '/api/admin/billing') return handleBilling()
+
+  // GET /api/admin/dashboard
+  if (method === 'GET' && path === '/api/admin/dashboard') return handleAdminDashboard()
+
+  // GET /api/admin/subscriptions
+  if (method === 'GET' && path === '/api/admin/subscriptions') return handleGetSubscriptions()
+
+  // PATCH /api/admin/subscriptions/:hoaId — change tier
+  const subMatch = path.match(/^\/api\/admin\/subscriptions\/([^/]+)$/)
+  if (subMatch && method === 'PATCH') return handleUpdateSubscription(subMatch[1], event.body ?? null, userId)
+
+  // POST /api/admin/subscriptions/:hoaId/extend-trial
+  const extendMatch = path.match(/^\/api\/admin\/subscriptions\/([^/]+)\/extend-trial$/)
+  if (extendMatch && method === 'POST') return handleExtendTrial(extendMatch[1], event.body ?? null, userId)
+
+  // GET /api/admin/activity
+  if (method === 'GET' && path === '/api/admin/activity') return handleActivity(event)
 
   return r.badRequest(`Unsupported admin route: ${method} ${path}`)
 }
