@@ -1,346 +1,322 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useAuth } from '@/contexts/AuthContext'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card'
-import { Spinner } from '@/components/ui/Spinner'
-import * as api from '@/lib/api'
-import type { User } from '@/types'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { getCurrentUser, getHoaInviteCode, rotateHoaInviteCode, createHoaAdminUser } from '@/lib/api'
+import type { HoaInviteCode, AuthUser } from '@/types'
 
-// ── Section wrapper ──────────────────────────────────────────────────────────
+// ─── Invite Code Card ─────────────────────────────────────────────────────────
 
-function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  )
-}
+function InviteCodeCard({ role }: { role: string }) {
+  const [code, setCode]         = useState<HoaInviteCode | null>(null)
+  const [loading, setLoading]   = useState(true)
+  const [rotating, setRotating] = useState(false)
+  const [copied, setCopied]     = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
+  const [showOpts, setShowOpts] = useState(false)
+  const [maxUses, setMaxUses]   = useState('')
+  const [expDays, setExpDays]   = useState('')
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-4 py-4 border-b border-gray-100 last:border-0">
-      <div>
-        <label className="text-sm font-medium text-gray-700">{label}</label>
-        {hint && <p className="text-xs text-gray-400 mt-0.5">{hint}</p>}
+  useEffect(() => {
+    getHoaInviteCode()
+      .then(setCode)
+      .catch(() => setCode(null))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const handleCopy = () => {
+    if (!code) return
+    void navigator.clipboard.writeText(code.code).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  const handleCopyLink = () => {
+    if (!code) return
+    const link = `${window.location.origin}/auth/signup?code=${code.code}`
+    void navigator.clipboard.writeText(link).then(() => {
+      setCopiedLink(true)
+      setTimeout(() => setCopiedLink(false), 2000)
+    })
+  }
+
+  const handleRotate = async () => {
+    if (code && !confirm('Generate a new invite code? The old code will stop working immediately.')) return
+    setRotating(true)
+    try {
+      const opts = {
+        ...(maxUses ? { maxUses: parseInt(maxUses, 10) } : {}),
+        ...(expDays ? { expiresInDays: parseInt(expDays, 10) } : {}),
+      }
+      const newCode = await rotateHoaInviteCode(opts)
+      setCode(newCode)
+      setShowOpts(false)
+      setMaxUses('')
+      setExpDays('')
+    } catch {
+      alert('Failed to generate new code. Please try again.')
+    } finally {
+      setRotating(false)
+    }
+  }
+
+  const isAdmin = role === 'board_admin'
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-6 animate-pulse space-y-3">
+        <div className="h-4 bg-gray-200 rounded w-1/3" />
+        <div className="h-12 bg-gray-100 rounded" />
       </div>
-      <div className="sm:col-span-2">{children}</div>
+    )
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Invite Code</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Share this code with residents so they can join your HOA</p>
+        </div>
+        {isAdmin && (
+          <button onClick={() => setShowOpts(!showOpts)} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+            {showOpts ? 'Hide options' : 'Options'}
+          </button>
+        )}
+      </div>
+
+      {code ? (
+        <>
+          <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+            <span className="text-3xl font-bold font-mono tracking-widest text-indigo-700 flex-1">
+              {code.code}
+            </span>
+            <button onClick={handleCopy}
+              className="px-3 py-1.5 bg-white border border-indigo-200 rounded-lg text-sm font-medium text-indigo-700 hover:bg-indigo-50 transition-colors">
+              {copied ? '✓ Copied!' : 'Copy code'}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-6 text-sm text-gray-600 flex-wrap">
+            <span>
+              <span className="font-semibold text-gray-900">{code.usedCount}</span> used
+              {code.maxUses !== null && <span className="text-gray-400"> of {code.maxUses}</span>}
+            </span>
+            {code.expiresAt ? (
+              <span>Expires <span className="font-semibold text-gray-900">{new Date(code.expiresAt).toLocaleDateString()}</span></span>
+            ) : (
+              <span className="text-gray-400">No expiry</span>
+            )}
+            <span className={`inline-flex items-center gap-1.5 ${code.isActive ? 'text-green-600' : 'text-red-500'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${code.isActive ? 'bg-green-500' : 'bg-red-500'}`} />
+              {code.isActive ? 'Active' : 'Inactive'}
+            </span>
+          </div>
+
+          <button onClick={handleCopyLink}
+            className="text-sm text-indigo-600 hover:text-indigo-800 underline">
+            {copiedLink ? '✓ Link copied!' : 'Copy sign-up link with code pre-filled →'}
+          </button>
+
+          {showOpts && isAdmin && (
+            <div className="border border-gray-200 rounded-xl p-4 space-y-3 bg-gray-50">
+              <p className="text-sm font-medium text-gray-700">Generate new code with options:</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Max uses (blank = unlimited)</label>
+                  <input type="number" min="1" value={maxUses} onChange={e => setMaxUses(e.target.value)}
+                    placeholder="Unlimited"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Expires in days (blank = never)</label>
+                  <input type="number" min="1" value={expDays} onChange={e => setExpDays(e.target.value)}
+                    placeholder="Never"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+              <button onClick={handleRotate} disabled={rotating}
+                className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50">
+                {rotating ? 'Generating…' : '🔄 Generate New Code (invalidates old)'}
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="text-center py-8">
+          <p className="text-sm text-gray-500 mb-3">No invite code yet. Create one to start onboarding residents.</p>
+          {isAdmin && (
+            <button onClick={handleRotate} disabled={rotating}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+              {rotating ? 'Creating…' : 'Create Invite Code'}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-function Input({ value, onChange, disabled, placeholder, type = 'text' }: {
-  value: string; onChange?: (v: string) => void; disabled?: boolean; placeholder?: string; type?: string
-}) {
-  return (
-    <input
-      type={type}
-      value={value}
-      onChange={e => onChange?.(e.target.value)}
-      disabled={disabled}
-      placeholder={placeholder}
-      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal disabled:bg-gray-50 disabled:text-gray-400"
-    />
-  )
-}
+// ─── Add Board Admin Card ─────────────────────────────────────────────────────
 
-function SaveButton({ onClick, saving, disabled }: { onClick: () => void; saving: boolean; disabled?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={saving || disabled}
-      className="mt-4 rounded-lg bg-teal px-4 py-2 text-sm font-medium text-white hover:bg-teal-600 disabled:opacity-50 transition-colors"
-    >
-      {saving ? 'Saving…' : 'Save Changes'}
-    </button>
-  )
-}
+function AddBoardAdminCard({ user }: { user: AuthUser }) {
+  const [open, setOpen]       = useState(false)
+  const [form, setForm]       = useState({ email: '', firstName: '', lastName: '', phone: '' })
+  const [loading, setLoading] = useState(false)
+  const [result, setResult]   = useState<{ password: string; name: string } | null>(null)
+  const [error, setError]     = useState('')
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  if (user.role !== 'board_admin') return null
+
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm(f => ({ ...f, [field]: e.target.value }))
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    try {
+      const res = await createHoaAdminUser(user.hoaId, {
+        email: form.email,
+        firstName: form.firstName,
+        lastName: form.lastName,
+        phone: form.phone || undefined,
+      })
+      setResult({ password: res.temporaryPassword, name: `${form.firstName} ${form.lastName}` })
+      setForm({ email: '', firstName: '', lastName: '', phone: '' })
+      setOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create account')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <label className="flex items-center gap-3 cursor-pointer">
-      <div
-        onClick={() => onChange(!checked)}
-        className={`relative w-10 h-6 rounded-full transition-colors cursor-pointer ${checked ? 'bg-teal' : 'bg-gray-200'}`}
-      >
-        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : 'translate-x-1'}`} />
+    <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Board Members</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Add admins or board members who can co-manage the HOA</p>
+        </div>
+        {!open && (
+          <button onClick={() => setOpen(true)}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+            + Add Board Admin
+          </button>
+        )}
       </div>
-      <span className="text-sm text-gray-700">{label}</span>
-    </label>
+
+      {result && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-1">
+          <p className="text-sm font-semibold text-green-900">✓ Account created for {result.name}</p>
+          <p className="text-xs text-green-800">
+            Temporary password: <code className="font-mono font-bold bg-green-100 px-1 rounded">{result.password}</code>
+          </p>
+          <p className="text-xs text-green-700">They can sign in immediately at {window.location.origin}/auth/signin</p>
+          <button onClick={() => setResult(null)} className="text-xs text-green-600 underline">Dismiss</button>
+        </div>
+      )}
+
+      {open && (
+        <form onSubmit={handleSubmit} className="border border-gray-200 rounded-xl p-4 space-y-3 bg-gray-50">
+          <p className="text-sm font-medium text-gray-700">New board admin account:</p>
+          {error && <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded px-3 py-2">{error}</p>}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">First name *</label>
+              <input required value={form.firstName} onChange={set('firstName')}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Last name *</label>
+              <input required value={form.lastName} onChange={set('lastName')}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Email *</label>
+            <input required type="email" value={form.email} onChange={set('email')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Phone (optional)</label>
+            <input type="tel" value={form.phone} onChange={set('phone')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={() => { setOpen(false); setError('') }}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={loading}
+              className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+              {loading ? 'Creating…' : 'Create Account'}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   )
 }
 
-// ── Page ─────────────────────────────────────────────────────────────────────
+// ─── How membership works ─────────────────────────────────────────────────────
+
+function MembershipInfoCard() {
+  return (
+    <div className="bg-blue-50 border border-blue-100 rounded-xl p-5">
+      <h3 className="text-sm font-semibold text-blue-900 mb-3">How membership works</h3>
+      <div className="space-y-2 text-sm text-blue-800">
+        <div className="flex gap-2">
+          <span className="text-blue-400 shrink-0 mt-0.5">①</span>
+          <span>A resident gets your invite code (or the pre-filled sign-up link)</span>
+        </div>
+        <div className="flex gap-2">
+          <span className="text-blue-400 shrink-0 mt-0.5">②</span>
+          <span>They complete sign-up — their account is created as <strong>Pending</strong></span>
+        </div>
+        <div className="flex gap-2">
+          <span className="text-blue-400 shrink-0 mt-0.5">③</span>
+          <span>You (or another board admin) approve them on the <strong>Members</strong> page</span>
+        </div>
+        <div className="flex gap-2">
+          <span className="text-blue-400 shrink-0 mt-0.5">④</span>
+          <span>Approved residents get full access to their portal — unit info, announcements, calendar, and more</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const { user, hoaId } = useAuth()
-  const isAdmin = user?.role === 'board_admin'
-
-  // Profile state
-  const [firstName, setFirstName] = useState(user?.firstName ?? '')
-  const [lastName, setLastName] = useState(user?.lastName ?? '')
-  const [phone, setPhone] = useState('')
-  const [savingProfile, setSavingProfile] = useState(false)
-  const [profileMsg, setProfileMsg] = useState<string | null>(null)
-
-  // HOA state (board_admin only)
-  const [hoaName, setHoaName] = useState('')
-  const [hoaAddress, setHoaAddress] = useState('')
-  const [hoaCity, setHoaCity] = useState('')
-  const [hoaState, setHoaState] = useState('')
-  const [hoaZip, setHoaZip] = useState('')
-  const [hoaTimezone, setHoaTimezone] = useState('America/New_York')
-  const [savingHoa, setSavingHoa] = useState(false)
-  const [hoaMsg, setHoaMsg] = useState<string | null>(null)
-
-  // Notification prefs
-  const [notifyTasks, setNotifyTasks] = useState(true)
-  const [notifyMeetings, setNotifyMeetings] = useState(true)
-  const [notifyMessages, setNotifyMessages] = useState(false)
-  const [notifyFinances, setNotifyFinances] = useState(true)
-  const [savingNotifs, setSavingNotifs] = useState(false)
-
-  // Members list (board_admin only)
-  const [members, setMembers] = useState<User[]>([])
-  const [loadingMembers, setLoadingMembers] = useState(false)
+  const router = useRouter()
+  const [user, setUser] = useState<AuthUser | null>(null)
 
   useEffect(() => {
-    if (!hoaId) return
+    getCurrentUser().then(u => {
+      if (u.role !== 'board_admin' && u.role !== 'board_member') {
+        router.replace('/dashboard')
+        return
+      }
+      setUser(u)
+    }).catch(() => router.replace('/auth/signin'))
+  }, [router])
 
-    // Load HOA details for admin
-    if (isAdmin) {
-      api.getResidents(hoaId).then(residents => {
-        setMembers(residents)
-      }).catch(console.error).finally(() => setLoadingMembers(false))
-    }
-
-    // Load notification preferences from localStorage (no backend yet)
-    try {
-      const prefs = JSON.parse(localStorage.getItem('stewardly-notif-prefs') ?? '{}')
-      if (prefs.tasks !== undefined) setNotifyTasks(prefs.tasks)
-      if (prefs.meetings !== undefined) setNotifyMeetings(prefs.meetings)
-      if (prefs.messages !== undefined) setNotifyMessages(prefs.messages)
-      if (prefs.finances !== undefined) setNotifyFinances(prefs.finances)
-    } catch {}
-  }, [hoaId, isAdmin])
-
-  async function saveProfile() {
-    if (!hoaId || !user) return
-    setSavingProfile(true)
-    setProfileMsg(null)
-    try {
-      await api.updateResident(hoaId, user.id, { firstName, lastName })
-      setProfileMsg('Profile saved.')
-    } catch (e: unknown) {
-      setProfileMsg(`Error: ${(e as Error).message}`)
-    } finally {
-      setSavingProfile(false)
-    }
-  }
-
-  function saveNotifications() {
-    setSavingNotifs(true)
-    localStorage.setItem('stewardly-notif-prefs', JSON.stringify({
-      tasks: notifyTasks, meetings: notifyMeetings,
-      messages: notifyMessages, finances: notifyFinances,
-    }))
-    setTimeout(() => setSavingNotifs(false), 600)
-  }
-
-  async function changeRole(residentId: string, newRole: 'board_admin' | 'board_member' | 'homeowner') {
-    if (!hoaId) return
-    await api.updateResident(hoaId, residentId, { role: newRole })
-    setMembers(prev => prev.map(m => m.id === residentId ? { ...m, role: newRole } : m))
-  }
-
-  const TIMEZONES = [
-    'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
-    'America/Phoenix', 'America/Anchorage', 'Pacific/Honolulu',
-  ]
+  if (!user) return null
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Manage your profile, HOA configuration, and preferences</p>
+        <h1 className="text-2xl font-bold text-gray-900">HOA Settings</h1>
+        <p className="text-sm text-gray-500 mt-1">Manage your community's invite code and board access</p>
       </div>
 
-      {/* ── Profile ──────────────────────────────────────────────────────── */}
-      <Section title="Your Profile" description="Update your personal information">
-        <Field label="First Name">
-          <Input value={firstName} onChange={setFirstName} />
-        </Field>
-        <Field label="Last Name">
-          <Input value={lastName} onChange={setLastName} />
-        </Field>
-        <Field label="Email" hint="Managed by your HOA admin">
-          <Input value={user?.email ?? ''} disabled />
-        </Field>
-        <Field label="Phone" hint="Optional — for urgent HOA communications">
-          <Input value={phone} onChange={setPhone} placeholder="(555) 000-0000" type="tel" />
-        </Field>
-        <Field label="Role">
-          <div className="inline-flex px-2.5 py-1 rounded-full bg-navy/10 text-navy text-xs font-medium capitalize">
-            {user?.role?.replace('_', ' ')}
-          </div>
-        </Field>
-        {profileMsg && (
-          <p className={`text-sm mt-2 ${profileMsg.startsWith('Error') ? 'text-red-500' : 'text-teal'}`}>
-            {profileMsg}
-          </p>
-        )}
-        <SaveButton onClick={saveProfile} saving={savingProfile} />
-      </Section>
-
-      {/* ── HOA Configuration (admin only) ───────────────────────────────── */}
-      {isAdmin && (
-        <Section title="HOA Configuration" description="Update your community details. Changes are visible to all members.">
-          <Field label="Community Name">
-            <Input value={hoaName} onChange={setHoaName} placeholder="Maple Ridge HOA" />
-          </Field>
-          <Field label="Address">
-            <Input value={hoaAddress} onChange={setHoaAddress} placeholder="100 Main Street" />
-          </Field>
-          <Field label="City">
-            <Input value={hoaCity} onChange={setHoaCity} placeholder="Raleigh" />
-          </Field>
-          <Field label="State">
-            <Input value={hoaState} onChange={setHoaState} placeholder="NC" />
-          </Field>
-          <Field label="ZIP Code">
-            <Input value={hoaZip} onChange={setHoaZip} placeholder="27609" />
-          </Field>
-          <Field label="Timezone">
-            <select
-              value={hoaTimezone}
-              onChange={e => setHoaTimezone(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal"
-            >
-              {TIMEZONES.map(tz => (
-                <option key={tz} value={tz}>{tz.replace('_', ' ')}</option>
-              ))}
-            </select>
-          </Field>
-          {hoaMsg && (
-            <p className={`text-sm mt-2 ${hoaMsg.startsWith('Error') ? 'text-red-500' : 'text-teal'}`}>
-              {hoaMsg}
-            </p>
-          )}
-          <p className="text-xs text-gray-400 mt-4">
-            Note: HOA name and address updates require a backend migration to be wired up. Contact your platform administrator.
-          </p>
-        </Section>
-      )}
-
-      {/* ── Member Management (admin only) ───────────────────────────────── */}
-      {isAdmin && (
-        <Section title="Member Roles" description="Adjust roles for your community members. Board admins can manage the full HOA.">
-          {loadingMembers
-            ? <div className="flex justify-center py-8"><Spinner /></div>
-            : (
-              <div className="divide-y divide-gray-100">
-                {members.map(member => (
-                  <div key={member.id} className="flex items-center justify-between py-3">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{member.firstName} {member.lastName}</p>
-                      <p className="text-xs text-gray-400">{member.email}</p>
-                    </div>
-                    {member.id === user?.id
-                      ? (
-                        <span className="text-xs text-gray-400 italic">You</span>
-                      )
-                      : (
-                        <select
-                          value={member.role}
-                          onChange={e => changeRole(member.id, e.target.value as 'board_admin' | 'board_member' | 'homeowner')}
-                          className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal"
-                        >
-                          <option value="homeowner">Homeowner</option>
-                          <option value="board_member">Board Member</option>
-                          <option value="board_admin">Board Admin</option>
-                        </select>
-                      )
-                    }
-                  </div>
-                ))}
-                {members.length === 0 && (
-                  <p className="text-sm text-gray-400 py-4 text-center">No members found</p>
-                )}
-              </div>
-            )
-          }
-        </Section>
-      )}
-
-      {/* ── Notification Preferences ─────────────────────────────────────── */}
-      <Section title="Notification Preferences" description="Choose what activity sends you an email digest.">
-        <div className="space-y-4">
-          <Toggle checked={notifyTasks} onChange={setNotifyTasks} label="Task assignments and status changes" />
-          <Toggle checked={notifyMeetings} onChange={setNotifyMeetings} label="Upcoming meetings and agenda updates" />
-          <Toggle checked={notifyMessages} onChange={setNotifyMessages} label="New community board posts" />
-          <Toggle checked={notifyFinances} onChange={setNotifyFinances} label="Financial reports and budget alerts" />
-        </div>
-        <SaveButton onClick={saveNotifications} saving={savingNotifs} />
-      </Section>
-
-      {/* ── Subscription ─────────────────────────────────────────────────── */}
-      <Section title="Subscription" description="Your current plan and billing information.">
-        <Field label="Current Plan">
-          <span className="inline-flex px-2.5 py-1 rounded-full bg-teal/10 text-teal text-xs font-semibold uppercase tracking-wide">
-            Growth
-          </span>
-        </Field>
-        <Field label="Status">
-          <span className="inline-flex px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">
-            Trial
-          </span>
-        </Field>
-        <Field label="Billing">
-          <p className="text-sm text-gray-500">
-            To upgrade your plan or manage billing, contact{' '}
-            <a href="mailto:billing@stewardly.biz" className="text-teal hover:underline">
-              billing@stewardly.biz
-            </a>
-          </p>
-        </Field>
-      </Section>
-
-      {/* ── Danger Zone (admin only) ─────────────────────────────────────── */}
-      {isAdmin && (
-        <Card className="border-red-200">
-          <CardHeader>
-            <CardTitle className="text-red-700">Danger Zone</CardTitle>
-            <CardDescription>These actions are irreversible. Proceed with caution.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between py-3 border-b border-red-100">
-              <div>
-                <p className="text-sm font-medium text-gray-900">Export All Data</p>
-                <p className="text-xs text-gray-400">Download a full CSV export of all HOA data</p>
-              </div>
-              <button className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                Export
-              </button>
-            </div>
-            <div className="flex items-center justify-between py-3">
-              <div>
-                <p className="text-sm font-medium text-red-700">Delete Community</p>
-                <p className="text-xs text-gray-400">Permanently delete this HOA and all its data</p>
-              </div>
-              <button
-                onClick={() => alert('Please contact support@stewardly.biz to delete your community.')}
-                className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <InviteCodeCard role={user.role} />
+      <AddBoardAdminCard user={user} />
+      <MembershipInfoCard />
     </div>
   )
 }

@@ -18,7 +18,8 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Spinner } from '@/components/ui/Spinner'
-import type { DashboardSummary, TaskStatus, TaskPriority, MyUnitData, Meeting } from '@/types'
+import { UserCheck, AlertTriangle } from 'lucide-react'
+import type { DashboardSummary, TaskStatus, TaskPriority, MyUnitData, Meeting, HoaStats } from '@/types'
 
 // ── Badge helpers ─────────────────────────────────────────────────────────────
 
@@ -219,16 +220,20 @@ function HomeownerDashboard() {
 
 function BoardDashboard() {
   const { hoaId, isLoading: authLoading } = useAuth()
-  const [data, setData] = useState<DashboardSummary | null>(null)
+  const [data, setData]         = useState<DashboardSummary | null>(null)
+  const [stats, setStats]       = useState<HoaStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     if (authLoading) return
     if (!hoaId) { setIsLoading(false); return }
-    api.getDashboard(hoaId)
-      .then(setData)
-      .catch(console.error)
-      .finally(() => setIsLoading(false))
+    Promise.all([
+      api.getDashboard(hoaId).catch(() => null),
+      api.getHoaStats().catch(() => null),
+    ]).then(([d, s]) => {
+      setData(d)
+      setStats(s)
+    }).finally(() => setIsLoading(false))
   }, [authLoading, hoaId])
 
   if (authLoading || isLoading) {
@@ -247,6 +252,40 @@ function BoardDashboard() {
           {format(new Date(), 'EEEE, MMMM d, yyyy')} · Board Dashboard
         </p>
       </div>
+
+      {/* Pending approvals alert */}
+      {stats && stats.pendingMembers > 0 && (
+        <Link href="/dashboard/members?status=pending"
+          className="flex items-center gap-3 rounded-xl bg-yellow-50 border border-yellow-200 px-4 py-3 hover:bg-yellow-100 transition-colors">
+          <AlertTriangle className="h-5 w-5 text-yellow-500 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-yellow-900">
+              {stats.pendingMembers} resident{stats.pendingMembers > 1 ? 's' : ''} awaiting membership approval
+            </p>
+            <p className="text-xs text-yellow-700">Review and approve new residents on the Members page</p>
+          </div>
+          <span className="text-xs font-medium text-yellow-800 flex items-center gap-1 shrink-0">
+            Review <UserCheck className="h-3.5 w-3.5" />
+          </span>
+        </Link>
+      )}
+
+      {/* HOA membership stats strip */}
+      {stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Active Members',    value: stats.activeMembers,           color: 'text-emerald-600' },
+            { label: 'Pending Approval',  value: stats.pendingMembers,          color: stats.pendingMembers > 0 ? 'text-yellow-600' : 'text-gray-400' },
+            { label: 'Open Maintenance',  value: stats.openMaintenanceRequests, color: stats.urgentMaintenanceRequests > 0 ? 'text-red-600' : 'text-gray-600' },
+            { label: 'Overdue Dues',      value: stats.overdueAssessments,      color: stats.overdueAssessments > 0 ? 'text-red-600' : 'text-gray-400' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+              <p className={`text-2xl font-bold ${color}`}>{value}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={<Home className="h-5 w-5" />} label="Total Units" value={data.totalUnits} variant="navy" />

@@ -224,10 +224,17 @@ export class ApiStack extends cdk.Stack {
       { id: 'MyUnit',            path: '/api/my-unit',                   methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },
       { id: 'Maintenance',       path: '/api/maintenance-requests',      methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: residentsLambda.function },
       { id: 'Documents',         path: '/api/documents',                 methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: residentsLambda.function },
+      // HOA-admin routes (board_admin / board_member, role-enforced in Lambda)
+      { id: 'HoaStats',          path: '/api/hoa/stats',                 methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },
+      { id: 'HoaMembers',        path: '/api/hoa/members',               methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },
+      { id: 'HoaMemberStatus',   path: '/api/hoa/members/{memberId}/status', methods: [apigatewayv2.HttpMethod.PATCH],                               fn: residentsLambda.function },
+      { id: 'HoaInviteCode',     path: '/api/hoa/invite-code',           methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: residentsLambda.function },
+      { id: 'HoaActivity',       path: '/api/hoa/activity',              methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },
       // Admin routes — superadmin role enforced in the Lambda itself
       { id: 'AdminDashboard',         path: '/api/admin/dashboard',                          methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
       { id: 'AdminHoas',              path: '/api/admin/hoas',                               methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
       { id: 'AdminHoaInviteCode',     path: '/api/admin/hoas/{hoaId}/invite-code',           methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],         fn: adminLambda.function },
+      { id: 'AdminHoaAdminUser',     path: '/api/admin/hoas/{hoaId}/admin-user',            methods: [apigatewayv2.HttpMethod.POST],                                      fn: adminLambda.function },
       { id: 'AdminHoaById',           path: '/api/admin/hoas/{hoaId}',                       methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.PATCH],         fn: adminLambda.function },
       { id: 'AdminUsers',             path: '/api/admin/users',                              methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
       { id: 'AdminUserById',          path: '/api/admin/users/{userId}',                     methods: [apigatewayv2.HttpMethod.PATCH],                                    fn: adminLambda.function },

@@ -497,3 +497,33 @@ export async function writeAuditLog(
     param.string('payloadJson', JSON.stringify(payload)),
   ])
 }
+
+// ── HOA board admin creation ─────────────────────────────────────────────────
+
+export async function createBoardAdminOwner(input: {
+  hoaId: string
+  email: string
+  firstName: string
+  lastName: string
+  phone: string | null
+}): Promise<{ id: string; email: string; firstName: string; lastName: string; role: string; status: string } | null> {
+  const row = await queryOne<{ id: string }>(
+    `INSERT INTO owners (id, hoa_id, email, first_name, last_name, role, status, phone)
+     VALUES (gen_random_uuid(), :hoaId, :email, :firstName, :lastName, 'board_admin', 'active', :phone)
+     ON CONFLICT (email) DO NOTHING
+     RETURNING id`,
+    [
+      param.string('hoaId', input.hoaId),
+      param.string('email', input.email),
+      param.string('firstName', input.firstName),
+      param.string('lastName', input.lastName),
+      param.stringOrNull('phone', input.phone),
+    ],
+  )
+  if (!row?.id) return null
+  return queryOne<{ id: string; email: string; firstName: string; lastName: string; role: string; status: string }>(
+    `SELECT id, email, first_name AS "firstName", last_name AS "lastName", role, status
+     FROM owners WHERE id = :id`,
+    [param.string('id', row.id)],
+  )
+}

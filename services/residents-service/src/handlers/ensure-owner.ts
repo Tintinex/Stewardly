@@ -4,7 +4,7 @@ import type { LambdaEvent } from '../../../shared/types'
 
 /** POST /api/residents/me — called after email confirmation + sign-in to upsert the DB owner record */
 export async function handleEnsureOwner(event: LambdaEvent): Promise<r.ApiResponse> {
-  const { hoaId, userId } = event.requestContext.authorizer.lambda
+  const { hoaId, userId, role } = event.requestContext.authorizer.lambda
 
   if (!event.body) return r.badRequest('Request body is required')
 
@@ -14,6 +14,7 @@ export async function handleEnsureOwner(event: LambdaEvent): Promise<r.ApiRespon
     email?: string
     phone?: string
     unitNumber?: string
+    inviteCode?: string
   }
 
   if (!parsed.firstName) return r.badRequest('firstName is required')
@@ -28,6 +29,8 @@ export async function handleEnsureOwner(event: LambdaEvent): Promise<r.ApiRespon
     lastName: parsed.lastName,
     phone: parsed.phone ?? null,
     unitNumber: parsed.unitNumber ?? null,
+    role: role ?? 'homeowner',
+    inviteCode: parsed.inviteCode ?? null,
   })
 
   if (!owner) return r.serverError('Failed to ensure owner record')

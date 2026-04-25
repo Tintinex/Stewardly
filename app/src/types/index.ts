@@ -316,6 +316,62 @@ export interface InviteCodeInfo {
   isActive: boolean
 }
 
+// ─── HOA Admin Portal ─────────────────────────────────────────────────────────
+
+export type MemberStatus = 'pending' | 'active' | 'suspended'
+
+export interface Member {
+  id: string
+  hoaId: string
+  email: string
+  firstName: string
+  lastName: string
+  role: UserRole
+  status: MemberStatus
+  unitId: string | null
+  unitNumber: string | null
+  phone: string | null
+  lastSeenAt: string | null
+  joinedViaCode: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface HoaStats {
+  totalMembers: number
+  activeMembers: number
+  pendingMembers: number
+  suspendedMembers: number
+  totalUnits: number
+  occupiedUnits: number
+  openMaintenanceRequests: number
+  urgentMaintenanceRequests: number
+  overdueAssessments: number
+  recentActivityCount: number
+}
+
+export interface HoaInviteCode {
+  id: string
+  hoaId: string
+  code: string
+  usedCount: number
+  maxUses: number | null
+  expiresAt: string | null
+  isActive: boolean
+  createdAt: string
+}
+
+export interface ActivityEntry {
+  id: string
+  hoaId: string
+  ownerId: string | null
+  actorName: string
+  action: string
+  metadata: Record<string, unknown> | null
+  createdAt: string
+}
+
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export interface AuthUser {

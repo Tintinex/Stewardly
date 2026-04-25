@@ -53,6 +53,12 @@ export const notFound = (resource: string): ApiResponse => ({
   body: JSON.stringify({ error: 'Not Found', message: `${resource} not found` }),
 })
 
+export const conflict = (message: string): ApiResponse => ({
+  statusCode: 409,
+  headers: corsHeaders,
+  body: JSON.stringify({ error: 'Conflict', message }),
+})
+
 export const serverError = (message = 'Internal server error'): ApiResponse => ({
   statusCode: 500,
   headers: corsHeaders,

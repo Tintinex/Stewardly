@@ -9,6 +9,7 @@ import type {
   Financials, AuthUser, CreateTaskPayload, UpdateTaskPayload,
   CreateMeetingPayload, CreateResidentPayload, CreatePostPayload,
   MyUnitData, MaintenanceRequest, CreateMaintenancePayload, DocumentRecord,
+  HoaStats, Member, HoaInviteCode, ActivityEntry,
 } from '@/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -419,4 +420,57 @@ export async function createThread(_hoaId: string, boardId: string, payload: { t
     }
   }
   return apiFetch<Thread>(`/api/boards/${boardId}/threads`, { method: 'POST', body: JSON.stringify(payload) })
+}
+
+// ─── HOA Admin — Members & Membership ─────────────────────────────────────────
+
+export async function getHoaStats(): Promise<HoaStats> {
+  if (config.useMock) {
+    await delay(200)
+    return { totalMembers: 24, activeMembers: 21, pendingMembers: 2, suspendedMembers: 1,
+             totalUnits: 30, occupiedUnits: 24, openMaintenanceRequests: 3,
+             urgentMaintenanceRequests: 1, overdueAssessments: 2, recentActivityCount: 14 }
+  }
+  return apiFetch<HoaStats>('/api/hoa/stats')
+}
+
+export async function getMembers(status?: 'pending' | 'active' | 'suspended'): Promise<Member[]> {
+  if (config.useMock) { await delay(200); return [] }
+  const qs = status ? `?status=${status}` : ''
+  return apiFetch<Member[]>(`/api/hoa/members${qs}`)
+}
+
+export async function updateMemberStatus(memberId: string, status: 'active' | 'suspended', notes?: string): Promise<Member> {
+  if (config.useMock) { await delay(300); return {} as Member }
+  return apiFetch<Member>(`/api/hoa/members/${memberId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status, notes }),
+  })
+}
+
+export async function getHoaInviteCode(): Promise<HoaInviteCode | null> {
+  if (config.useMock) {
+    await delay(200)
+    return { id: 'mock', hoaId: 'mock', code: 'SUNRISE8', usedCount: 3, maxUses: null, expiresAt: null, isActive: true, createdAt: new Date().toISOString() }
+  }
+  return apiFetch<HoaInviteCode | null>('/api/hoa/invite-code')
+}
+
+export async function rotateHoaInviteCode(opts?: { maxUses?: number; expiresInDays?: number }): Promise<HoaInviteCode> {
+  if (config.useMock) { await delay(300); return {} as HoaInviteCode }
+  return apiFetch<HoaInviteCode>('/api/hoa/invite-code', { method: 'POST', body: JSON.stringify(opts ?? {}) })
+}
+
+export async function getHoaActivityLog(limit = 50, offset = 0): Promise<ActivityEntry[]> {
+  if (config.useMock) { await delay(200); return [] }
+  return apiFetch<ActivityEntry[]>(`/api/hoa/activity?limit=${limit}&offset=${offset}`)
+}
+
+// ─── Superadmin — HOA admin user creation ─────────────────────────────────────
+
+export async function createHoaAdminUser(hoaId: string, payload: {
+  email: string; firstName: string; lastName: string; phone?: string
+}): Promise<{ owner: Member; temporaryPassword: string; hoaName: string }> {
+  if (config.useMock) { await delay(400); return { owner: {} as Member, temporaryPassword: 'TempPass123!', hoaName: 'Mock HOA' } }
+  return apiFetch(`/api/admin/hoas/${hoaId}/admin-user`, { method: 'POST', body: JSON.stringify(payload) })
 }

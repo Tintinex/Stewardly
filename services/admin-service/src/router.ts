@@ -9,6 +9,7 @@ import { handleAdminDashboard } from './handlers/dashboard'
 import { handleGetSubscriptions, handleUpdateSubscription, handleExtendTrial } from './handlers/subscriptions'
 import { handleActivity } from './handlers/activity'
 import { handleGetInviteCode, handleRotateInviteCode } from './handlers/invite-code'
+import { handleCreateHoaAdmin } from './handlers/create-hoa-admin'
 
 export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   const { role, userId } = event.requestContext.authorizer.lambda
@@ -24,12 +25,16 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   // GET /api/admin/hoas
   if (method === 'GET' && path === '/api/admin/hoas') return handleListHoas()
 
-  // GET /api/admin/hoas/:hoaId/invite-code
+  // GET/POST /api/admin/hoas/:hoaId/invite-code
   const inviteCodeMatch = path.match(/^\/api\/admin\/hoas\/([^/]+)\/invite-code$/)
   if (inviteCodeMatch) {
     if (method === 'GET')  return handleGetInviteCode(inviteCodeMatch[1])
     if (method === 'POST') return handleRotateInviteCode(inviteCodeMatch[1], userId)
   }
+
+  // POST /api/admin/hoas/:hoaId/admin-user — create board_admin Cognito user
+  const adminUserMatch = path.match(/^\/api\/admin\/hoas\/([^/]+)\/admin-user$/)
+  if (adminUserMatch && method === 'POST') return handleCreateHoaAdmin(adminUserMatch[1], event.body ?? null, userId)
 
   // GET /api/admin/hoas/:hoaId
   const hoaMatch = path.match(/^\/api\/admin\/hoas\/([^/]+)$/)

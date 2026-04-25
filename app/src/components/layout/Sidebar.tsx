@@ -1,35 +1,34 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, CheckSquare, Calendar, Users, BarChart2, MessageSquare,
-  Settings, LogOut, ShieldAlert, Home, Wrench, Megaphone, FileText,
+  Settings, LogOut, ShieldAlert, Home, Wrench, Megaphone, FileText, UserCheck,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAuth } from '@/contexts/AuthContext'
 import { Avatar } from '@/components/ui/Avatar'
+import { getMembers } from '@/lib/api'
 
 // ── Navigation config ─────────────────────────────────────────────────────────
 
-// Items shown to every authenticated user
 const COMMON_ITEMS = [
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]
 
-// Board admins & board members get full HOA management tools
 const BOARD_ITEMS = [
   { href: '/dashboard',           label: 'Dashboard',    icon: LayoutDashboard },
   { href: '/dashboard/tasks',     label: 'Tasks',        icon: CheckSquare },
   { href: '/dashboard/meetings',  label: 'Meetings',     icon: Calendar },
+  { href: '/dashboard/members',   label: 'Members',      icon: UserCheck },
   { href: '/dashboard/residents', label: 'Residents',    icon: Users },
   { href: '/dashboard/finances',  label: 'Finances',     icon: BarChart2 },
   { href: '/dashboard/messages',  label: 'Messages',     icon: MessageSquare },
   { href: '/dashboard/documents', label: 'Documents',    icon: FileText },
 ]
 
-// Homeowners get a resident-focused view
 const HOMEOWNER_ITEMS = [
   { href: '/dashboard',                 label: 'Home',          icon: Home },
   { href: '/dashboard/my-unit',         label: 'My Unit',       icon: Home },
@@ -40,7 +39,6 @@ const HOMEOWNER_ITEMS = [
   { href: '/dashboard/my-unit',         label: 'Maintenance',   icon: Wrench },
 ]
 
-// De-dupe by href so 'My Unit' and 'Maintenance' don't both show as active
 const deduped = (items: typeof BOARD_ITEMS) =>
   items.filter((item, idx, arr) => arr.findIndex(i => i.href === item.href) === idx)
 
@@ -51,11 +49,22 @@ interface SidebarProps {
 export function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname()
   const { user, signOut } = useAuth()
+  const [pendingCount, setPendingCount] = useState(0)
 
   const isBoard = user?.role === 'board_admin' || user?.role === 'board_member'
-  const baseItems = isBoard ? BOARD_ITEMS : HOMEOWNER_ITEMS
 
-  // Build the navigation: role-specific items + common (settings)
+  // Poll pending members count for board roles
+  useEffect(() => {
+    if (!isBoard || user?.role === 'board_member') return
+    const load = () => {
+      getMembers('pending').then(m => setPendingCount(m.length)).catch(() => {})
+    }
+    load()
+    const interval = setInterval(load, 60000) // refresh every minute
+    return () => clearInterval(interval)
+  }, [isBoard, user?.role])
+
+  const baseItems = isBoard ? BOARD_ITEMS : HOMEOWNER_ITEMS
   const navItems = deduped([...baseItems, ...COMMON_ITEMS])
 
   const handleSignOut = async () => {
@@ -110,7 +119,13 @@ export function Sidebar({ onClose }: SidebarProps) {
                 )}
               >
                 <Icon className="h-4.5 w-4.5 shrink-0" size={18} />
-                {label}
+                <span className="flex-1">{label}</span>
+                {/* Pending badge on Members link */}
+                {href === '/dashboard/members' && pendingCount > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-yellow-400 text-gray-900 text-[10px] font-bold rounded-full">
+                    {pendingCount}
+                  </span>
+                )}
               </Link>
             </li>
           ))}

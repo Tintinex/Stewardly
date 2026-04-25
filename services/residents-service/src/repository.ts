@@ -11,6 +11,8 @@ export async function ensureOwner(input: {
   lastName: string
   phone: string | null
   unitNumber: string | null
+  role?: string
+  inviteCode?: string | null
 }): Promise<Resident | null> {
   // Check if owner already exists by cognito_sub
   const existing = await queryOne<{ id: string; hoaId: string }>(
@@ -19,6 +21,11 @@ export async function ensureOwner(input: {
   )
 
   if (existing) {
+    // Update last_seen_at on every login
+    await execute(
+      'UPDATE owners SET last_seen_at = NOW() WHERE id = :id',
+      [param.string('id', existing.id)],
+    )
     return getResident(existing.hoaId, existing.id)
   }
 
@@ -29,10 +36,14 @@ export async function ensureOwner(input: {
     unitId = unit?.id ?? null
   }
 
+  // Board roles are pre-approved; homeowners need admin approval
+  const isBoardRole = input.role === 'board_admin' || input.role === 'board_member'
+  const status = isBoardRole ? 'active' : 'pending'
+
   // Insert new owner
   const row = await queryOne<{ id: string }>(
-    `INSERT INTO owners (id, hoa_id, cognito_sub, email, first_name, last_name, role, unit_id, phone)
-     VALUES (gen_random_uuid(), :hoaId, :cognitoSub, :email, :firstName, :lastName, 'homeowner', :unitId, :phone)
+    `INSERT INTO owners (id, hoa_id, cognito_sub, email, first_name, last_name, role, unit_id, phone, status, last_seen_at, joined_via_code)
+     VALUES (gen_random_uuid(), :hoaId, :cognitoSub, :email, :firstName, :lastName, 'homeowner', :unitId, :phone, :status, NOW(), :inviteCode)
      RETURNING id`,
     [
       param.string('hoaId', input.hoaId),
@@ -42,9 +53,34 @@ export async function ensureOwner(input: {
       param.string('lastName', input.lastName),
       param.stringOrNull('unitId', unitId),
       param.stringOrNull('phone', input.phone),
+      param.string('status', status),
+      param.stringOrNull('inviteCode', input.inviteCode ?? null),
     ],
   )
   if (!row?.id) return null
+
+  // Log membership event
+  await execute(
+    `INSERT INTO membership_events (id, hoa_id, owner_id, event_type, performed_by, notes)
+     VALUES (gen_random_uuid(), :hoaId, :ownerId, :eventType, NULL, NULL)`,
+    [
+      param.string('hoaId', input.hoaId),
+      param.string('ownerId', row.id),
+      param.string('eventType', isBoardRole ? 'approved' : 'applied'),
+    ],
+  )
+
+  // Log activity
+  await execute(
+    `INSERT INTO user_activity_log (id, hoa_id, owner_id, action, metadata, created_at)
+     VALUES (gen_random_uuid(), :hoaId, :ownerId, 'signup', :metadata, NOW())`,
+    [
+      param.string('hoaId', input.hoaId),
+      param.string('ownerId', row.id),
+      param.string('metadata', JSON.stringify({ email: input.email, status })),
+    ],
+  )
+
   return getResident(input.hoaId, row.id)
 }
 
@@ -192,8 +228,10 @@ export async function createMaintenanceRequest(input: {
 }
 
 const RESIDENT_SELECT = `
-  SELECT o.id, o.hoa_id, o.email, o.first_name, o.last_name, o.role,
-         o.unit_id, u.unit_number, o.phone, o.avatar_url, o.created_at, o.updated_at
+  SELECT o.id, o.hoa_id AS "hoaId", o.email, o.first_name AS "firstName", o.last_name AS "lastName",
+         o.role, o.status, o.unit_id AS "unitId", u.unit_number AS "unitNumber",
+         o.phone, o.avatar_url AS "avatarUrl", o.last_seen_at AS "lastSeenAt",
+         o.joined_via_code AS "joinedViaCode", o.created_at AS "createdAt", o.updated_at AS "updatedAt"
   FROM owners o
   LEFT JOIN units u ON u.id = o.unit_id`
 
@@ -327,4 +365,248 @@ export async function createDocument(input: {
   if (!row?.id) return null
   const docs = await listDocuments(input.hoaId)
   return docs.find(d => d.id === row.id) ?? null
+}
+
+// ── HOA Admin — Members ──────────────────────────────────────────────────────
+
+export interface Member {
+  id: string
+  hoaId: string
+  email: string
+  firstName: string
+  lastName: string
+  role: string
+  status: string
+  unitId: string | null
+  unitNumber: string | null
+  phone: string | null
+  lastSeenAt: string | null
+  joinedViaCode: string | null
+  createdAt: string
+}
+
+export async function listMembers(hoaId: string, status?: string): Promise<Member[]> {
+  const params = [param.string('hoaId', hoaId)]
+  let sql = `${RESIDENT_SELECT} WHERE o.hoa_id = :hoaId`
+  if (status) {
+    sql += ` AND o.status = :status`
+    params.push(param.string('status', status))
+  }
+  sql += ` ORDER BY
+    CASE o.status WHEN 'pending' THEN 0 WHEN 'active' THEN 1 ELSE 2 END,
+    o.last_name ASC, o.first_name ASC`
+  return query<Member>(sql, params)
+}
+
+export async function updateMemberStatus(
+  hoaId: string,
+  memberId: string,
+  status: 'active' | 'suspended',
+): Promise<Member | null> {
+  await execute(
+    `UPDATE owners SET status = :status, updated_at = NOW()
+     WHERE id = :memberId AND hoa_id = :hoaId`,
+    [param.string('status', status), param.string('memberId', memberId), param.string('hoaId', hoaId)],
+  )
+  return getResident(hoaId, memberId)
+}
+
+export async function logMembershipEvent(input: {
+  hoaId: string
+  ownerId: string
+  eventType: 'applied' | 'approved' | 'rejected' | 'suspended' | 'reinstated'
+  performedBy: string | null
+  notes: string | null
+}): Promise<void> {
+  await execute(
+    `INSERT INTO membership_events (id, hoa_id, owner_id, event_type, performed_by, notes)
+     VALUES (gen_random_uuid(), :hoaId, :ownerId, :eventType, :performedBy, :notes)`,
+    [
+      param.string('hoaId', input.hoaId),
+      param.string('ownerId', input.ownerId),
+      param.string('eventType', input.eventType),
+      param.stringOrNull('performedBy', input.performedBy),
+      param.stringOrNull('notes', input.notes),
+    ],
+  )
+}
+
+// ── HOA Admin — Stats ────────────────────────────────────────────────────────
+
+export interface HoaStats {
+  totalMembers: number
+  activeMembers: number
+  pendingMembers: number
+  suspendedMembers: number
+  totalUnits: number
+  occupiedUnits: number
+  openMaintenanceRequests: number
+  urgentMaintenanceRequests: number
+  overdueAssessments: number
+  recentActivityCount: number
+}
+
+export async function getHoaStats(hoaId: string): Promise<HoaStats> {
+  const [memberStats, unitStats, maintenanceStats, assessmentStats, activityStats] = await Promise.all([
+    queryOne<{ total: number; active: number; pending: number; suspended: number }>(
+      `SELECT
+         COUNT(*)::int AS total,
+         COUNT(*) FILTER (WHERE status = 'active')::int AS active,
+         COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+         COUNT(*) FILTER (WHERE status = 'suspended')::int AS suspended
+       FROM owners WHERE hoa_id = :hoaId`,
+      [param.string('hoaId', hoaId)],
+    ),
+    queryOne<{ total: number; occupied: number }>(
+      `SELECT
+         COUNT(*)::int AS total,
+         COUNT(DISTINCT o.unit_id)::int AS occupied
+       FROM units u
+       LEFT JOIN owners o ON o.unit_id = u.id AND o.hoa_id = u.hoa_id
+       WHERE u.hoa_id = :hoaId`,
+      [param.string('hoaId', hoaId)],
+    ),
+    queryOne<{ open: number; urgent: number }>(
+      `SELECT
+         COUNT(*) FILTER (WHERE status IN ('open','in_progress'))::int AS open,
+         COUNT(*) FILTER (WHERE status IN ('open','in_progress') AND priority = 'urgent')::int AS urgent
+       FROM maintenance_requests WHERE hoa_id = :hoaId`,
+      [param.string('hoaId', hoaId)],
+    ),
+    queryOne<{ overdue: number }>(
+      `SELECT COUNT(*)::int AS overdue
+       FROM assessments
+       WHERE hoa_id = :hoaId AND status IN ('outstanding','overdue') AND due_date < NOW()`,
+      [param.string('hoaId', hoaId)],
+    ),
+    queryOne<{ count: number }>(
+      `SELECT COUNT(*)::int AS count FROM user_activity_log
+       WHERE hoa_id = :hoaId AND created_at > NOW() - INTERVAL '7 days'`,
+      [param.string('hoaId', hoaId)],
+    ),
+  ])
+
+  return {
+    totalMembers: memberStats?.total ?? 0,
+    activeMembers: memberStats?.active ?? 0,
+    pendingMembers: memberStats?.pending ?? 0,
+    suspendedMembers: memberStats?.suspended ?? 0,
+    totalUnits: unitStats?.total ?? 0,
+    occupiedUnits: unitStats?.occupied ?? 0,
+    openMaintenanceRequests: maintenanceStats?.open ?? 0,
+    urgentMaintenanceRequests: maintenanceStats?.urgent ?? 0,
+    overdueAssessments: assessmentStats?.overdue ?? 0,
+    recentActivityCount: activityStats?.count ?? 0,
+  }
+}
+
+// ── HOA Admin — Invite Codes ─────────────────────────────────────────────────
+
+export interface InviteCodeRecord {
+  id: string
+  hoaId: string
+  code: string
+  usedCount: number
+  maxUses: number | null
+  expiresAt: string | null
+  isActive: boolean
+  createdAt: string
+}
+
+export async function getHoaInviteCode(hoaId: string): Promise<InviteCodeRecord | null> {
+  return queryOne<InviteCodeRecord>(
+    `SELECT id, hoa_id AS "hoaId", code, used_count AS "usedCount",
+            max_uses AS "maxUses", expires_at AS "expiresAt",
+            is_active AS "isActive", created_at AS "createdAt"
+     FROM invite_codes
+     WHERE hoa_id = :hoaId AND is_active = true
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [param.string('hoaId', hoaId)],
+  )
+}
+
+export async function rotateHoaInviteCode(input: {
+  hoaId: string
+  createdBy: string
+  maxUses: number | null
+  expiresAt: string | null
+}): Promise<InviteCodeRecord> {
+  // Deactivate existing codes
+  await execute(
+    'UPDATE invite_codes SET is_active = false WHERE hoa_id = :hoaId AND is_active = true',
+    [param.string('hoaId', input.hoaId)],
+  )
+
+  const code = Array.from({ length: 8 }, () =>
+    'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'[Math.floor(Math.random() * 34)],
+  ).join('')
+
+  const row = await queryOne<{ id: string }>(
+    `INSERT INTO invite_codes (id, hoa_id, code, created_by, max_uses, expires_at, is_active, used_count)
+     VALUES (gen_random_uuid(), :hoaId, :code, :createdBy, :maxUses, :expiresAt, true, 0)
+     RETURNING id`,
+    [
+      param.string('hoaId', input.hoaId),
+      param.string('code', code),
+      param.string('createdBy', input.createdBy),
+      param.stringOrNull('maxUses', input.maxUses != null ? String(input.maxUses) : null),
+      param.stringOrNull('expiresAt', input.expiresAt),
+    ],
+  )
+  if (!row?.id) throw new Error('Failed to create invite code')
+
+  const created = await getHoaInviteCode(input.hoaId)
+  if (!created) throw new Error('Failed to retrieve created invite code')
+  return created
+}
+
+// ── Activity Log ─────────────────────────────────────────────────────────────
+
+export interface ActivityEntry {
+  id: string
+  hoaId: string
+  ownerId: string | null
+  actorName: string
+  action: string
+  metadata: Record<string, unknown> | null
+  createdAt: string
+}
+
+export async function logActivity(
+  hoaId: string,
+  ownerId: string | null,
+  action: string,
+  metadata?: Record<string, unknown>,
+): Promise<void> {
+  await execute(
+    `INSERT INTO user_activity_log (id, hoa_id, owner_id, action, metadata, created_at)
+     VALUES (gen_random_uuid(), :hoaId, :ownerId, :action, :metadata, NOW())`,
+    [
+      param.string('hoaId', hoaId),
+      param.stringOrNull('ownerId', ownerId),
+      param.string('action', action),
+      param.stringOrNull('metadata', metadata ? JSON.stringify(metadata) : null),
+    ],
+  )
+}
+
+export async function getActivityLog(hoaId: string, limit: number, offset: number): Promise<ActivityEntry[]> {
+  return query<ActivityEntry>(
+    `SELECT al.id, al.hoa_id AS "hoaId", al.owner_id AS "ownerId",
+            COALESCE(CONCAT(o.first_name, ' ', o.last_name), 'System') AS "actorName",
+            al.action,
+            al.metadata,
+            al.created_at AS "createdAt"
+     FROM user_activity_log al
+     LEFT JOIN owners o ON o.id = al.owner_id
+     WHERE al.hoa_id = :hoaId
+     ORDER BY al.created_at DESC
+     LIMIT :limit OFFSET :offset`,
+    [
+      param.string('hoaId', hoaId),
+      param.string('limit', String(limit)),
+      param.string('offset', String(offset)),
+    ],
+  )
 }

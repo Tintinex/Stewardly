@@ -9,6 +9,11 @@ import { handleListMaintenance } from './handlers/list-maintenance'
 import { handleCreateMaintenance } from './handlers/create-maintenance'
 import { handleListDocuments } from './handlers/list-documents'
 import { handleCreateDocument } from './handlers/create-document'
+import { handleHoaStats } from './handlers/hoa-stats'
+import { handleListMembers } from './handlers/list-members'
+import { handleUpdateMemberStatus } from './handlers/update-member-status'
+import { handleGetHoaInviteCode, handleRotateHoaInviteCode } from './handlers/hoa-invite-code'
+import { handleActivityLog } from './handlers/activity-log'
 
 export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   const { hoaId, userId, role } = event.requestContext.authorizer.lambda
@@ -48,6 +53,45 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   if (method === 'POST' && path.endsWith('/documents')) {
     if (!hoaId) return r.unauthorized()
     return handleCreateDocument(event.body ?? null, hoaId, userId, role)
+  }
+
+  // ── HOA Admin routes ────────────────────────────────────────────────────────
+
+  // GET /api/hoa/stats
+  if (method === 'GET' && path.endsWith('/hoa/stats')) {
+    if (!hoaId) return r.unauthorized()
+    return handleHoaStats(hoaId)
+  }
+
+  // GET /api/hoa/members[?status=...]
+  if (method === 'GET' && path.endsWith('/hoa/members')) {
+    if (!hoaId) return r.unauthorized()
+    return handleListMembers(event, hoaId, role)
+  }
+
+  // PATCH /api/hoa/members/:memberId/status
+  const memberStatusMatch = path.match(/\/hoa\/members\/([^/]+)\/status$/)
+  if (memberStatusMatch && method === 'PATCH') {
+    if (!hoaId) return r.unauthorized()
+    return handleUpdateMemberStatus(event.body ?? null, hoaId, memberStatusMatch[1], userId, role)
+  }
+
+  // GET /api/hoa/invite-code
+  if (method === 'GET' && path.endsWith('/hoa/invite-code')) {
+    if (!hoaId) return r.unauthorized()
+    return handleGetHoaInviteCode(hoaId, role)
+  }
+
+  // POST /api/hoa/invite-code (create/rotate)
+  if (method === 'POST' && path.endsWith('/hoa/invite-code')) {
+    if (!hoaId) return r.unauthorized()
+    return handleRotateHoaInviteCode(event.body ?? null, hoaId, userId, role)
+  }
+
+  // GET /api/hoa/activity[?limit=&offset=]
+  if (method === 'GET' && path.endsWith('/hoa/activity')) {
+    if (!hoaId) return r.unauthorized()
+    return handleActivityLog(event, hoaId, role)
   }
 
   // Remaining routes require hoaId
