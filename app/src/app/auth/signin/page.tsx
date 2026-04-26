@@ -127,9 +127,15 @@ function SignInForm() {
       </form>
 
       <p className="mt-6 text-center text-sm text-gray-500">
-        New to Stewardly?{' '}
+        Joining your community?{' '}
         <Link href="/auth/signup" className="font-medium text-teal hover:text-teal-600">
-          Create an account
+          Sign up with invite code
+        </Link>
+      </p>
+      <p className="mt-2 text-center text-sm text-gray-500">
+        Starting a new HOA?{' '}
+        <Link href="/auth/register-hoa" className="font-medium text-teal hover:text-teal-600">
+          Register your HOA
         </Link>
       </p>
     </div>

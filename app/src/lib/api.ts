@@ -10,6 +10,7 @@ import type {
   CreateMeetingPayload, CreateResidentPayload, CreatePostPayload,
   MyUnitData, MaintenanceRequest, CreateMaintenancePayload, DocumentRecord,
   HoaStats, Member, HoaInviteCode, ActivityEntry,
+  RegisterHoaPayload, RegisterHoaResult,
 } from '@/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -464,6 +465,30 @@ export async function rotateHoaInviteCode(opts?: { maxUses?: number; expiresInDa
 export async function getHoaActivityLog(limit = 50, offset = 0): Promise<ActivityEntry[]> {
   if (config.useMock) { await delay(200); return [] }
   return apiFetch<ActivityEntry[]>(`/api/hoa/activity?limit=${limit}&offset=${offset}`)
+}
+
+// ─── HOA self-registration (public — no auth token required) ─────────────────
+
+export async function registerHoa(payload: RegisterHoaPayload): Promise<RegisterHoaResult> {
+  if (config.useMock) {
+    await delay(600)
+    return {
+      hoa: { id: 'mock-hoa-id', name: payload.hoaName },
+      owner: { id: 'mock-owner-id', email: payload.email, firstName: payload.firstName, lastName: payload.lastName, role: 'board_admin' },
+      inviteCode: 'MOCKCD12',
+      message: `"${payload.hoaName}" is live on a 14-day free trial.`,
+    }
+  }
+  const res = await fetch(`${config.apiUrl}/auth/register-hoa`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }))
+    throw new Error(err.message || `Registration failed (${res.status})`)
+  }
+  return res.json() as Promise<RegisterHoaResult>
 }
 
 // ─── Superadmin — HOA admin user creation ─────────────────────────────────────

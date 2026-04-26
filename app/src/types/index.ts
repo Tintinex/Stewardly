@@ -428,3 +428,26 @@ export interface CreateThreadPayload {
   boardId: string
   body: string
 }
+
+// ─── HOA Registration ─────────────────────────────────────────────────────────
+
+export interface RegisterHoaPayload {
+  hoaName: string
+  address?: string
+  city?: string
+  state?: string
+  zip?: string
+  unitCount?: number
+  firstName: string
+  lastName: string
+  email: string
+  password: string
+  phone?: string
+}
+
+export interface RegisterHoaResult {
+  hoa: { id: string; name: string }
+  owner: { id: string; email: string; firstName: string; lastName: string; role: string }
+  inviteCode: string
+  message: string
+}

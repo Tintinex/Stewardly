@@ -36,7 +36,8 @@ const HOMEOWNER_ITEMS = [
   { href: '/dashboard/calendar',        label: 'Calendar',      icon: Calendar },
   { href: '/dashboard/messages',        label: 'Messages',      icon: MessageSquare },
   { href: '/dashboard/documents',       label: 'Documents',     icon: FileText },
-  { href: '/dashboard/my-unit',         label: 'Maintenance',   icon: Wrench },
+  { href: '/dashboard/finances',        label: 'Finances',      icon: BarChart2 },
+  { href: '/dashboard/residents',       label: 'Residents',     icon: Users },
 ]
 
 const deduped = (items: typeof BOARD_ITEMS) =>

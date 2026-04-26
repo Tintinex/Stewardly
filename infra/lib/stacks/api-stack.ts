@@ -130,11 +130,24 @@ export class ApiStack extends cdk.Stack {
       ],
     })
 
-    // Signup Lambda — public (no authorizer), only needs DB to validate invite codes
+    // Signup Lambda — public (no authorizer); handles invite validation + HOA self-registration
     const signupLambda = new SecureLambda(this, 'SignupLambda', {
       ...commonLambdaProps,
       functionName: 'signup-service',
       handler: 'index.handler',
+      additionalEnv: {
+        COGNITO_USER_POOL_ID: userPool.userPoolId,
+      },
+      additionalPolicies: [
+        new iam.PolicyStatement({
+          actions: [
+            'cognito-idp:AdminCreateUser',
+            'cognito-idp:AdminSetUserPassword',
+            'cognito-idp:AdminUpdateUserAttributes',
+          ],
+          resources: [userPool.userPoolArn],
+        }),
+      ],
     })
 
     // Health check Lambda (no auth)
@@ -204,6 +217,13 @@ export class ApiStack extends cdk.Stack {
       path: '/auth/validate-invite',
       methods: [apigatewayv2.HttpMethod.GET],
       integration: integration('ValidateInvite', signupLambda.function),
+    })
+
+    // Public — HOA self-registration (no authorizer — creates new HOA + board_admin user)
+    httpApi.addRoutes({
+      path: '/auth/register-hoa',
+      methods: [apigatewayv2.HttpMethod.POST],
+      integration: integration('RegisterHoa', signupLambda.function),
     })
 
     // Protected routes — id must be unique per construct and contain no CDK tokens
