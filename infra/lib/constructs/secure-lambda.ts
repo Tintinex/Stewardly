@@ -121,28 +121,37 @@ export class SecureLambda extends Construct {
       role.addToPolicy(policy)
     }
 
+    // Use pre-built dist/ artifact if it exists — avoids CDK's asset-staging
+    // rename which fails on Windows with EPERM (file system lock).
+    // The dist/ is built by: npx esbuild src/index.ts --bundle ... --outfile=dist/index.js
+    const distDir = path.join(servicesAbsPath, functionName, 'dist')
+    const fs = require('fs') as typeof import('fs')
+    const distExists = fs.existsSync(path.join(distDir, 'index.js'))
+
+    const code = distExists
+      ? lambda.Code.fromAsset(distDir)
+      : lambda.Code.fromAsset(codeAssetPath, {
+          bundling: {
+            local: makeLocalBundler(servicesAbsPath, `${functionName}/src/index.ts`),
+            image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+            command: [
+              'bash', '-c',
+              [
+                'npm install',
+                `npx esbuild ${functionName}/src/index.ts`,
+                '--bundle --platform=node --target=node20',
+                '--external:@aws-sdk/* --tree-shaking=true --sourcemap',
+                '--outfile=/asset-output/index.js',
+              ].join(' '),
+            ],
+          },
+        })
+
     this.function = new lambda.Function(this, 'Fn', {
       functionName: `stewardly-${functionName}-${stage}`,
       runtime: lambda.Runtime.NODEJS_20_X,
       handler,
-      code: lambda.Code.fromAsset(codeAssetPath, {
-        bundling: {
-          // In-process bundling via esbuild JS API — no Docker needed
-          local: makeLocalBundler(servicesAbsPath, `${functionName}/src/index.ts`),
-          // Docker fallback (used in CI if Docker is available)
-          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
-          command: [
-            'bash', '-c',
-            [
-              'npm install',
-              `npx esbuild ${functionName}/src/index.ts`,
-              '--bundle --platform=node --target=node20',
-              '--external:@aws-sdk/* --tree-shaking=true --sourcemap',
-              '--outfile=/asset-output/index.js',
-            ].join(' '),
-          ],
-        },
-      }),
+      code,
       role,
       vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
