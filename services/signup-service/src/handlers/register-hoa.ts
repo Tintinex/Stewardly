@@ -59,6 +59,11 @@ export async function handleRegisterHoa(body: string | null): Promise<r.ApiRespo
 
   const email = input.email.toLowerCase().trim()
 
+  // Normalize phone to E.164 (+1XXXXXXXXXX for US numbers).
+  // Cognito rejects anything that isn't valid E.164 — phone is optional so we
+  // strip it rather than blocking registration if the format is unrecognised.
+  const phone = normalizePhone(input.phone)
+
   // ── 1. Create HOA ────────────────────────────────────────────────────────────
   const hoa = await createHoa({
     name: input.hoaName.trim(),
@@ -88,7 +93,7 @@ export async function handleRegisterHoa(body: string | null): Promise<r.ApiRespo
         { Name: 'custom:hoaId',    Value: hoa.id },
         { Name: 'custom:role',     Value: 'board_admin' },
         { Name: 'custom:unitId',   Value: '' },
-        ...(input.phone ? [{ Name: 'phone_number', Value: input.phone }] : []),
+        ...(phone ? [{ Name: 'phone_number', Value: phone }] : []),
       ],
     }))
 
@@ -116,7 +121,7 @@ export async function handleRegisterHoa(body: string | null): Promise<r.ApiRespo
     email,
     firstName: input.firstName.trim(),
     lastName: input.lastName.trim(),
-    phone: input.phone ?? null,
+    phone: phone ?? null,
     cognitoSub,
   })
 
@@ -135,4 +140,26 @@ export async function handleRegisterHoa(body: string | null): Promise<r.ApiRespo
     inviteCode,
     message: `"${hoa.name}" is live on a 14-day free trial. Share the invite code with your residents!`,
   })
+}
+
+/**
+ * Normalise a phone string to E.164 format (+1XXXXXXXXXX for US/CA numbers).
+ * Returns null if the number can't be understood — Cognito rejects non-E.164
+ * values so we'd rather omit the field than cause a 500.
+ */
+function normalizePhone(raw: string | undefined): string | null {
+  if (!raw) return null
+  // Strip all non-digit characters
+  const digits = raw.replace(/\D/g, '')
+  // Already E.164 (starts with +)
+  if (raw.trim().startsWith('+')) {
+    // Keep it but re-strip to ensure only digits after +
+    return `+${digits}`
+  }
+  // 10-digit US number → +1XXXXXXXXXX
+  if (digits.length === 10) return `+1${digits}`
+  // 11-digit with leading 1 (US) → +1XXXXXXXXXX
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
+  // Unrecognised — omit rather than send a bad value to Cognito
+  return null
 }
