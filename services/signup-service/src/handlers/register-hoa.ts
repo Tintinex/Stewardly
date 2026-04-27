@@ -53,7 +53,9 @@ export async function handleRegisterHoa(body: string | null): Promise<r.ApiRespo
     return r.badRequest('Password must be at least 8 characters')
   }
   if (!/[A-Z]/.test(input.password)) return r.badRequest('Password must contain at least one uppercase letter')
+  if (!/[a-z]/.test(input.password)) return r.badRequest('Password must contain at least one lowercase letter')
   if (!/[0-9]/.test(input.password)) return r.badRequest('Password must contain at least one number')
+  if (!/[^A-Za-z0-9]/.test(input.password)) return r.badRequest('Password must contain at least one special character (e.g. !@#$%)')
 
   const email = input.email.toLowerCase().trim()
 

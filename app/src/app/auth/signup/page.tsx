@@ -115,6 +115,10 @@ function SignUpForm() {
       setError('Please fill in all required fields'); return
     }
     if (form.password.length < 8) { setError('Password must be at least 8 characters'); return }
+    if (!/[A-Z]/.test(form.password)) { setError('Password must contain at least one uppercase letter'); return }
+    if (!/[a-z]/.test(form.password)) { setError('Password must contain at least one lowercase letter'); return }
+    if (!/[0-9]/.test(form.password)) { setError('Password must contain at least one number'); return }
+    if (!/[^A-Za-z0-9]/.test(form.password)) { setError('Password must contain at least one special character (e.g. !@#$%)'); return }
     if (form.password !== form.confirmPassword) { setError('Passwords do not match'); return }
     setError(null)
     setLoading(true)

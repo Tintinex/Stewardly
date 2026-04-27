@@ -116,7 +116,9 @@ export default function RegisterHoaPage() {
     }
     if (form.password.length < 8) { setError('Password must be at least 8 characters'); return }
     if (!/[A-Z]/.test(form.password)) { setError('Password must contain at least one uppercase letter'); return }
+    if (!/[a-z]/.test(form.password)) { setError('Password must contain at least one lowercase letter'); return }
     if (!/[0-9]/.test(form.password)) { setError('Password must contain at least one number'); return }
+    if (!/[^A-Za-z0-9]/.test(form.password)) { setError('Password must contain at least one special character (e.g. !@#$%)'); return }
     if (form.password !== form.confirmPassword) { setError('Passwords do not match'); return }
 
     setError(null)
@@ -338,7 +340,7 @@ export default function RegisterHoaPage() {
                     type={showPassword ? 'text' : 'password'}
                     value={form.password}
                     onChange={set('password')}
-                    placeholder="Min 8 chars, 1 uppercase, 1 number"
+                    placeholder="Min 8 chars, uppercase, number, symbol"
                     required
                     className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 pr-10 text-sm text-gray-900 placeholder-gray-400 focus:border-teal focus:outline-none focus:ring-2 focus:ring-teal"
                   />
