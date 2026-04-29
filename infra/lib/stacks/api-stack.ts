@@ -240,7 +240,7 @@ export class ApiStack extends cdk.Stack {
       { id: 'ThreadPosts',       path: '/api/threads/{threadId}/posts',  methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: messagingLambda.function },
       { id: 'Finances',          path: '/api/finances',                  methods: [apigatewayv2.HttpMethod.GET],                                     fn: financesLambda.function },
       // Resident-facing routes
-      { id: 'EnsureOwner',       path: '/api/residents/me',              methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: residentsLambda.function },
+      { id: 'EnsureOwner',       path: '/api/residents/me',              methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST, apigatewayv2.HttpMethod.PATCH], fn: residentsLambda.function },
       { id: 'MyUnit',            path: '/api/my-unit',                   methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },
       { id: 'Maintenance',       path: '/api/maintenance-requests',      methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: residentsLambda.function },
       { id: 'Documents',         path: '/api/documents',                 methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: residentsLambda.function },

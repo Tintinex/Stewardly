@@ -1,5 +1,135 @@
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { query, queryOne, execute, param } from '../../shared/db/client'
 import type { Resident, CreateResidentInput, UpdateResidentInput } from './types'
+
+const s3 = new S3Client({ region: process.env.AWS_REGION ?? 'us-east-1' })
+const S3_BUCKET = process.env.S3_BUCKET ?? ''
+
+// ── My Profile ───────────────────────────────────────────────────────────────
+
+export interface OwnerProfile {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string | null
+  role: string
+  unitId: string | null
+  unitNumber: string | null
+  avatarUrl: string | null   // pre-signed GET URL, regenerated each request
+  hoaId: string
+  hoaName: string
+}
+
+export async function getMyProfile(hoaId: string, cognitoSub: string): Promise<OwnerProfile | null> {
+  const row = await queryOne<{
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    phone: string | null
+    role: string
+    unitId: string | null
+    unitNumber: string | null
+    avatarKey: string | null
+    hoaId: string
+    hoaName: string
+  }>(
+    `SELECT o.id, o.first_name AS "firstName", o.last_name AS "lastName",
+            o.email, o.phone, o.role, o.unit_id AS "unitId",
+            u.unit_number AS "unitNumber",
+            o.avatar_url AS "avatarKey",
+            o.hoa_id AS "hoaId", h.name AS "hoaName"
+     FROM owners o
+     JOIN hoas h ON h.id = o.hoa_id
+     LEFT JOIN units u ON u.id = o.unit_id
+     WHERE o.cognito_sub = :cognitoSub AND o.hoa_id = :hoaId`,
+    [param.string('cognitoSub', cognitoSub), param.string('hoaId', hoaId)],
+  )
+
+  if (!row) return null
+
+  // Generate a short-lived presigned GET URL if the owner has stored an avatar key
+  let avatarUrl: string | null = null
+  if (row.avatarKey && S3_BUCKET) {
+    try {
+      avatarUrl = await getSignedUrl(
+        s3,
+        new GetObjectCommand({ Bucket: S3_BUCKET, Key: row.avatarKey }),
+        { expiresIn: 3600 }, // 1 hour
+      )
+    } catch {
+      avatarUrl = null
+    }
+  }
+
+  return {
+    id: row.id,
+    firstName: row.firstName,
+    lastName: row.lastName,
+    email: row.email,
+    phone: row.phone,
+    role: row.role,
+    unitId: row.unitId,
+    unitNumber: row.unitNumber,
+    avatarUrl,
+    hoaId: row.hoaId,
+    hoaName: row.hoaName,
+  }
+}
+
+export async function generateAvatarUploadUrl(hoaId: string, ownerId: string): Promise<{ uploadUrl: string; avatarKey: string }> {
+  const avatarKey = `avatars/${hoaId}/${ownerId}/profile.jpg`
+  const uploadUrl = await getSignedUrl(
+    s3,
+    new PutObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: avatarKey,
+      ContentType: 'image/jpeg',
+    }),
+    { expiresIn: 300 }, // 5 minutes to upload
+  )
+  return { uploadUrl, avatarKey }
+}
+
+export async function updateOwnerProfile(input: {
+  hoaId: string
+  cognitoSub: string
+  avatarKey?: string
+  firstName?: string
+  lastName?: string
+  phone?: string | null
+}): Promise<void> {
+  const setParts: string[] = ['updated_at = NOW()']
+  const params: ReturnType<typeof param.string>[] = [
+    param.string('cognitoSub', input.cognitoSub),
+    param.string('hoaId', input.hoaId),
+  ]
+
+  if (input.avatarKey !== undefined) {
+    setParts.push('avatar_url = :avatarKey')
+    params.push(param.string('avatarKey', input.avatarKey))
+  }
+  if (input.firstName !== undefined) {
+    setParts.push('first_name = :firstName')
+    params.push(param.string('firstName', input.firstName))
+  }
+  if (input.lastName !== undefined) {
+    setParts.push('last_name = :lastName')
+    params.push(param.string('lastName', input.lastName))
+  }
+  if (input.phone !== undefined) {
+    setParts.push('phone = :phone')
+    params.push(param.stringOrNull('phone', input.phone))
+  }
+
+  await execute(
+    `UPDATE owners SET ${setParts.join(', ')}
+     WHERE cognito_sub = :cognitoSub AND hoa_id = :hoaId`,
+    params,
+  )
+}
 
 // ── Ensure owner (upsert on signup) ─────────────────────────────────────────
 
@@ -87,26 +217,70 @@ export async function ensureOwner(input: {
 // ── My unit + assessments ────────────────────────────────────────────────────
 
 export async function getMyUnit(hoaId: string, userId: string): Promise<{
-  unit: Record<string, unknown>
+  owner: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    phone: string | null
+    role: string
+    unitId: string | null
+  }
+  unit: Record<string, unknown> | null
   assessments: Record<string, unknown>[]
-  ownerName: string
   hoaName: string
+  hoaAddress: string
+  hoaCity: string
+  hoaState: string
+  hoaZip: string
 } | null> {
   const ownerRow = await queryOne<{
     id: string
     firstName: string
     lastName: string
+    email: string
+    phone: string | null
+    role: string
     unitId: string | null
     hoaName: string
+    hoaAddress: string
+    hoaCity: string
+    hoaState: string
+    hoaZip: string
   }>(
-    `SELECT o.id, o.first_name, o.last_name, o.unit_id, h.name AS hoa_name
+    `SELECT o.id, o.first_name, o.last_name, o.email, o.phone, o.role, o.unit_id,
+            h.name AS hoa_name, h.address AS hoa_address,
+            h.city AS hoa_city, h.state AS hoa_state, h.zip AS hoa_zip
      FROM owners o
      JOIN hoas h ON h.id = o.hoa_id
      WHERE o.cognito_sub = :userId AND o.hoa_id = :hoaId`,
     [param.string('userId', userId), param.string('hoaId', hoaId)],
   )
 
-  if (!ownerRow || !ownerRow.unitId) return null
+  // Owner not found at all
+  if (!ownerRow) return null
+
+  // If the owner has no unit (e.g. board_admin), return profile + HOA data, no unit/assessments
+  if (!ownerRow.unitId) {
+    return {
+      owner: {
+        id: ownerRow.id,
+        firstName: ownerRow.firstName,
+        lastName: ownerRow.lastName,
+        email: ownerRow.email,
+        phone: ownerRow.phone,
+        role: ownerRow.role,
+        unitId: null,
+      },
+      unit: null,
+      assessments: [],
+      hoaName: ownerRow.hoaName,
+      hoaAddress: ownerRow.hoaAddress,
+      hoaCity: ownerRow.hoaCity,
+      hoaState: ownerRow.hoaState,
+      hoaZip: ownerRow.hoaZip,
+    }
+  }
 
   const unit = await queryOne<Record<string, unknown>>(
     `SELECT u.id, u.unit_number, u.address, u.sqft, u.bedrooms, u.bathrooms
@@ -115,22 +289,34 @@ export async function getMyUnit(hoaId: string, userId: string): Promise<{
     [param.string('unitId', ownerRow.unitId), param.string('hoaId', hoaId)],
   )
 
-  if (!unit) return null
-
-  const assessments = await query<Record<string, unknown>>(
-    `SELECT id, amount, due_date, paid_date, status, description, created_at
-     FROM assessments
-     WHERE unit_id = :unitId
-     ORDER BY due_date DESC
-     LIMIT 12`,
-    [param.string('unitId', ownerRow.unitId)],
-  )
+  const assessments = unit
+    ? await query<Record<string, unknown>>(
+        `SELECT id, amount, due_date, paid_date, status, description, created_at
+         FROM assessments
+         WHERE unit_id = :unitId
+         ORDER BY due_date DESC
+         LIMIT 12`,
+        [param.string('unitId', ownerRow.unitId)],
+      )
+    : []
 
   return {
-    unit,
+    owner: {
+      id: ownerRow.id,
+      firstName: ownerRow.firstName,
+      lastName: ownerRow.lastName,
+      email: ownerRow.email,
+      phone: ownerRow.phone,
+      role: ownerRow.role,
+      unitId: ownerRow.unitId,
+    },
+    unit: unit ?? null,
     assessments,
-    ownerName: `${ownerRow.firstName} ${ownerRow.lastName}`,
     hoaName: ownerRow.hoaName,
+    hoaAddress: ownerRow.hoaAddress,
+    hoaCity: ownerRow.hoaCity,
+    hoaState: ownerRow.hoaState,
+    hoaZip: ownerRow.hoaZip,
   }
 }
 

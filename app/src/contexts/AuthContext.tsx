@@ -18,6 +18,7 @@ interface AuthContextValue {
   isLoading: boolean
   signIn: (email: string, password: string) => Promise<AuthUser | null>
   signOut: () => Promise<void>
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -76,6 +77,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(null)
   }, [])
 
+  const refreshUser = useCallback(async () => {
+    const u = await api.getCurrentUser().catch(() => null)
+    if (u) setUser(u)
+  }, [])
+
   return (
     <AuthContext.Provider
       value={{
@@ -85,6 +91,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isLoading,
         signIn,
         signOut,
+        refreshUser,
       }}
     >
       {children}

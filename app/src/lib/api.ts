@@ -53,28 +53,52 @@ export async function getCurrentUser(): Promise<AuthUser> {
       firstName: u.firstName,
       lastName: u.lastName,
       hoaId: u.hoaId,
+      hoaName: 'Mock HOA Community',
       role: u.role,
       unitId: u.unitId,
+      avatarUrl: null,
     }
   }
 
-  // Read identity directly from the Cognito JWT — no backend call needed.
-  // The access token carries custom:hoaId, custom:role, sub, and email.
+  // Step 1: Read the Cognito ID token for auth claims (hoaId, role, sub, email).
+  // The ID token carries custom:hoaId, custom:role, custom:unitId via the
+  // pre-token-generation trigger.  given_name / family_name are also in the ID
+  // token but may be blank for some sign-up paths, so we always back-fill from DB.
   const session = await fetchAuthSession()
-  const token = session.tokens?.accessToken
+  const token = session.tokens?.idToken
   if (!token) throw new Error('No active session')
 
-  // Amplify v6 exposes the decoded payload on the token object
   const payload = token.payload as Record<string, string>
+  const hoaId = payload['custom:hoaId'] ?? ''
+  const sub   = payload['sub'] ?? ''
+  const role  = (payload['custom:role'] ?? 'homeowner') as AuthUser['role']
+
+  // Step 2: Fetch the owner DB record for ground-truth name, hoaName, avatarUrl.
+  // Uses the ID token (already set as the auth token via getAuthToken()).
+  interface ProfileResponse {
+    id: string; firstName: string; lastName: string; email: string
+    hoaName: string; avatarUrl: string | null; unitId: string | null
+  }
+  let profile: ProfileResponse | null = null
+
+  if (hoaId) {
+    try {
+      profile = await apiFetch<ProfileResponse>('/api/residents/me')
+    } catch {
+      // Profile not yet created (first sign-in before /residents/me POST) — fall back to JWT
+    }
+  }
 
   return {
-    id: payload['sub'] ?? '',
-    email: payload['email'] ?? payload['username'] ?? '',
-    firstName: payload['given_name'] ?? '',
-    lastName: payload['family_name'] ?? '',
-    hoaId: payload['custom:hoaId'] ?? '',
-    role: (payload['custom:role'] ?? 'homeowner') as AuthUser['role'],
-    unitId: payload['custom:unitId'] ?? null,
+    id:        profile?.id        ?? sub,
+    email:     profile?.email     ?? payload['email'] ?? '',
+    firstName: profile?.firstName ?? payload['given_name'] ?? '',
+    lastName:  profile?.lastName  ?? payload['family_name'] ?? '',
+    hoaId,
+    hoaName:   profile?.hoaName   ?? '',
+    role,
+    unitId:    profile?.unitId    ?? payload['custom:unitId'] ?? null,
+    avatarUrl: profile?.avatarUrl ?? null,
   }
 }
 
@@ -382,14 +406,41 @@ export async function ensureOwner(payload: { firstName: string; lastName: string
   return apiFetch<AuthUser>('/api/residents/me', { method: 'POST', body: JSON.stringify(payload) })
 }
 
+/**
+ * Get a presigned S3 PUT URL for uploading a new profile photo.
+ * Returns { uploadUrl, avatarKey } — client PUTs the image file to uploadUrl,
+ * then calls updateMyProfile({ avatarKey }) to persist the key.
+ */
+export async function getAvatarUploadUrl(): Promise<{ uploadUrl: string; avatarKey: string }> {
+  return apiFetch<{ uploadUrl: string; avatarKey: string }>('/api/residents/me?avatarUpload=true')
+}
+
+/** Update profile fields (name, phone, or avatarKey after a photo upload) */
+export async function updateMyProfile(payload: {
+  avatarKey?: string
+  firstName?: string
+  lastName?: string
+  phone?: string | null
+}): Promise<AuthUser> {
+  if (config.useMock) { await delay(200); return {} as AuthUser }
+  return apiFetch<AuthUser>('/api/residents/me', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
 export async function getMyUnit(): Promise<MyUnitData> {
   if (config.useMock) {
     await delay(200)
     return {
+      owner: { id: 'u1', firstName: 'Demo', lastName: 'User', email: 'demo@example.com', phone: null, role: 'homeowner', unitId: 'u1' },
       unit: { id: 'u1', unitNumber: '101', address: '101 Oak Lane', sqft: 1200, bedrooms: 2, bathrooms: 2 },
       assessments: [],
-      ownerName: 'Demo User',
       hoaName: 'Mock HOA',
+      hoaAddress: '101 Oak Lane',
+      hoaCity: 'Chicago',
+      hoaState: 'IL',
+      hoaZip: '60601',
     }
   }
   return apiFetch<MyUnitData>('/api/my-unit')

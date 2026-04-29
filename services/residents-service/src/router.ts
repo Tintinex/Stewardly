@@ -4,6 +4,8 @@ import { handleList } from './handlers/list'
 import { handleCreate } from './handlers/create'
 import { handleUpdate } from './handlers/update'
 import { handleEnsureOwner } from './handlers/ensure-owner'
+import { handleGetMyProfile } from './handlers/get-my-profile'
+import { handleUpdateMyProfile } from './handlers/update-my-profile'
 import { handleMyUnit } from './handlers/my-unit'
 import { handleListMaintenance } from './handlers/list-maintenance'
 import { handleCreateMaintenance } from './handlers/create-maintenance'
@@ -21,6 +23,13 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   const method = event.requestContext.http.method
   const path = event.requestContext.http.path
   const residentId = event.pathParameters?.residentId
+
+  // GET /api/residents/me — return current user's profile (name, hoaName, avatarUrl, etc.)
+  // Supports ?avatarUpload=true to get a presigned PUT URL for photo upload
+  if (method === 'GET' && path.endsWith('/residents/me')) return handleGetMyProfile(event)
+
+  // PATCH /api/residents/me — update profile (firstName, lastName, phone, avatarKey)
+  if (method === 'PATCH' && path.endsWith('/residents/me')) return handleUpdateMyProfile(event)
 
   // POST /api/residents/me — upsert owner from JWT claims (hoaId may be set from JWT for homeowners)
   if (method === 'POST' && path.endsWith('/residents/me')) return handleEnsureOwner(event)

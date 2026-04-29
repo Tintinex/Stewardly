@@ -254,6 +254,15 @@ export interface Financials {
 // ─── Resident Portal ─────────────────────────────────────────────────────────
 
 export interface MyUnitData {
+  owner: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    phone: string | null
+    role: string
+    unitId: string | null
+  }
   unit: {
     id: string
     unitNumber: string
@@ -263,8 +272,11 @@ export interface MyUnitData {
     bathrooms: number | null
   } | null
   assessments: Assessment[]
-  ownerName: string
   hoaName: string
+  hoaAddress: string
+  hoaCity: string
+  hoaState: string
+  hoaZip: string
 }
 
 export type MaintenanceStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
@@ -380,8 +392,10 @@ export interface AuthUser {
   firstName: string
   lastName: string
   hoaId: string
+  hoaName: string
   role: UserRole
   unitId: string | null
+  avatarUrl: string | null  // presigned S3 GET URL, valid ~1 hour
 }
 
 // ─── API Request Payloads ─────────────────────────────────────────────────────

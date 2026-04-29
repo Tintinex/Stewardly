@@ -33,7 +33,10 @@ export async function getAuthToken(): Promise<string | null> {
   if (config.useMock) return 'mock-jwt-token'
   try {
     const session = await fetchAuthSession()
-    return session.tokens?.accessToken?.toString() ?? null
+    // ID token carries custom:hoaId, custom:role, custom:unitId (added by the
+    // pre-token-generation Lambda V1 trigger).  Access token only has standard
+    // OAuth2 claims — it never receives custom attributes via V1 triggers.
+    return session.tokens?.idToken?.toString() ?? null
   } catch {
     return null
   }

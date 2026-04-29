@@ -85,11 +85,11 @@ function HomeownerDashboard() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
-          Welcome back, {user?.firstName}!
+          Welcome back, {user?.firstName || user?.email?.split('@')[0] || 'there'}!
         </h1>
         <p className="mt-0.5 text-sm text-gray-500">
           {format(new Date(), 'EEEE, MMMM d, yyyy')}
-          {unitData?.hoaName && ` · ${unitData.hoaName}`}
+          {(user?.hoaName || unitData?.hoaName) && ` · ${user?.hoaName || unitData?.hoaName}`}
         </p>
       </div>
 

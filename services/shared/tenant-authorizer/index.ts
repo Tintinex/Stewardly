@@ -130,9 +130,12 @@ export const handler = async (
       return deny
     }
 
-    // Check token_use
-    if (claims.token_use !== 'access') {
-      console.warn('Invalid token_use, expected access token')
+    // Check token_use — we accept both 'id' and 'access' tokens.
+    // Cognito V1 pre-token-generation triggers only add custom attributes
+    // (custom:hoaId, custom:role, custom:unitId) to the ID token, not the
+    // access token.  The frontend sends the ID token so it carries those claims.
+    if (claims.token_use !== 'access' && claims.token_use !== 'id') {
+      console.warn('Invalid token_use, expected access or id token')
       return deny
     }
 
