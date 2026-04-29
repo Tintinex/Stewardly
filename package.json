@@ -1,0 +1,14 @@
+{
+  "name": "stewardly",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Stewardly HOA management platform - monorepo root",
+  "scripts": {
+    "build": "cd app && npm run build",
+    "dev": "cd app && npm run dev",
+    "start": "cd app && npm run start"
+  },
+  "dependencies": {
+    "next": "14.2.5"
+  }
+}
