@@ -1,0 +1,20 @@
+version: 1
+applications:
+  - frontend:
+      phases:
+        preBuild:
+          commands:
+            - cd app
+            - npm ci
+        build:
+          commands:
+            - npm run build
+      artifacts:
+        baseDirectory: app/.next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - app/node_modules/**/*
+          - app/.next/cache/**/*
+    appRoot: app
