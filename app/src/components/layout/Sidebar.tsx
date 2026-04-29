@@ -69,6 +69,7 @@ export function Sidebar({ onClose }: SidebarProps) {
   const navItems = deduped([...baseItems, ...COMMON_ITEMS])
 
   const handleSignOut = async () => {
+    document.cookie = 'stewardly-admin-verified=; path=/; max-age=0; SameSite=Strict'
     await signOut()
     window.location.href = '/auth/signin'
   }

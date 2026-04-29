@@ -19,6 +19,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
   const notificationCount = 3
 
   const handleSignOut = async () => {
+    document.cookie = 'stewardly-admin-verified=; path=/; max-age=0; SameSite=Strict'
     await signOut()
     window.location.href = '/auth/signin'
   }
