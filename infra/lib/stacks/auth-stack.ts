@@ -42,7 +42,7 @@ export class AuthStack extends cdk.Stack {
 
     const preTokenFn = new lambda.Function(this, 'PreTokenGenerationFn', {
       functionName: `stewardly-pre-token-${stage}`,
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'index.handler',
       role: preTokenRole,
       timeout: cdk.Duration.seconds(5),
@@ -134,7 +134,7 @@ export class AuthStack extends cdk.Stack {
 
     this.authorizerFunction = new lambda.Function(this, 'AuthorizerFunction', {
       functionName: `stewardly-authorizer-${stage}`,
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'index.handler',
       code: lambda.Code.fromAsset('../services', {
         bundling: {
@@ -145,7 +145,7 @@ export class AuthStack extends cdk.Stack {
                   entryPoints: [path.resolve('../services/shared/tenant-authorizer/index.ts')],
                   bundle: true,
                   platform: 'node',
-                  target: 'node20',
+                  target: 'node22',
                   external: ['@aws-sdk/*'],
                   outfile: path.join(outputDir, 'index.js'),
                   nodePaths: [LOCAL_NM],
@@ -154,10 +154,10 @@ export class AuthStack extends cdk.Stack {
               } catch { return false }
             },
           },
-          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
           command: [
             'bash', '-c',
-            'npm install && npx esbuild shared/tenant-authorizer/index.ts --bundle --platform=node --target=node20 --external:@aws-sdk/* --outfile=/asset-output/index.js',
+            'npm install && npx esbuild shared/tenant-authorizer/index.ts --bundle --platform=node --target=node22 --external:@aws-sdk/* --outfile=/asset-output/index.js',
           ],
         },
       }),

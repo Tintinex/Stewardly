@@ -72,7 +72,7 @@ export class MigrationStack extends cdk.Stack {
     // ── Bundled Lambda using esbuild (includes pg) ──────────────────────────
     this.migrationFunction = new lambda.Function(this, 'MigrationFn', {
       functionName: `stewardly-migrate-${stage}`,
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'index.handler',
       code: lambda.Code.fromAsset(servicesAbsPath, {
         bundling: {
@@ -83,7 +83,7 @@ export class MigrationStack extends cdk.Stack {
                   entryPoints: [path.join(servicesAbsPath, 'migration-runner/src/index.ts')],
                   bundle: true,
                   platform: 'node',
-                  target: 'node20',
+                  target: 'node22',
                   external: ['@aws-sdk/*'],
                   outfile: path.join(outputDir, 'index.js'),
                   nodePaths: [LOCAL_NM, SOURCE_NM],
@@ -95,10 +95,10 @@ export class MigrationStack extends cdk.Stack {
               }
             },
           },
-          image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
           command: [
             'bash', '-c',
-            'npm install && npx esbuild migration-runner/src/index.ts --bundle --platform=node --target=node20 --external:@aws-sdk/* --outfile=/asset-output/index.js',
+            'npm install && npx esbuild migration-runner/src/index.ts --bundle --platform=node --target=node22 --external:@aws-sdk/* --outfile=/asset-output/index.js',
           ],
         },
       }),

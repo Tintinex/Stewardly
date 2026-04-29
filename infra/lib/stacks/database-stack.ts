@@ -104,7 +104,7 @@ export class DatabaseStack extends cdk.Stack {
 
     new lambda.Function(this, 'MigrationFunction', {
       functionName: `stewardly-migration-${stage}`,
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'index.handler',
       code: lambda.Code.fromInline(`
         exports.handler = async (event) => {

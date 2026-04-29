@@ -47,7 +47,7 @@ function makeLocalBundler(servicesAbsPath: string, entryPoint: string) {
           entryPoints: [path.join(servicesAbsPath, entryPoint)],
           bundle: true,
           platform: 'node',
-          target: 'node20',
+          target: 'node22',
           external: ['@aws-sdk/*'],
           treeShaking: true,
           sourcemap: true,
@@ -133,13 +133,13 @@ export class SecureLambda extends Construct {
       : lambda.Code.fromAsset(codeAssetPath, {
           bundling: {
             local: makeLocalBundler(servicesAbsPath, `${functionName}/src/index.ts`),
-            image: lambda.Runtime.NODEJS_20_X.bundlingImage,
+            image: lambda.Runtime.NODEJS_22_X.bundlingImage,
             command: [
               'bash', '-c',
               [
                 'npm install',
                 `npx esbuild ${functionName}/src/index.ts`,
-                '--bundle --platform=node --target=node20',
+                '--bundle --platform=node --target=node22',
                 '--external:@aws-sdk/* --tree-shaking=true --sourcemap',
                 '--outfile=/asset-output/index.js',
               ].join(' '),
@@ -149,7 +149,7 @@ export class SecureLambda extends Construct {
 
     this.function = new lambda.Function(this, 'Fn', {
       functionName: `stewardly-${functionName}-${stage}`,
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler,
       code,
       role,

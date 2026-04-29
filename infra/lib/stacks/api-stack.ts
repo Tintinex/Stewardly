@@ -160,7 +160,7 @@ export class ApiStack extends cdk.Stack {
 
     const healthLambda = new lambda.Function(this, 'HealthLambda', {
       functionName: `stewardly-health-${stage}`,
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'index.handler',
       role: healthLambdaRole,
       code: lambda.Code.fromInline(`
