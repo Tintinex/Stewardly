@@ -173,7 +173,7 @@ export async function ensureOwner(input: {
   // Insert new owner
   const row = await queryOne<{ id: string }>(
     `INSERT INTO owners (id, hoa_id, cognito_sub, email, first_name, last_name, role, unit_id, phone, status, last_seen_at, joined_via_code)
-     VALUES (gen_random_uuid(), :hoaId, :cognitoSub, :email, :firstName, :lastName, 'homeowner', :unitId, :phone, :status, NOW(), :inviteCode)
+     VALUES (gen_random_uuid(), :hoaId, :cognitoSub, :email, :firstName, :lastName, :role, :unitId, :phone, :status, NOW(), :inviteCode)
      RETURNING id`,
     [
       param.string('hoaId', input.hoaId),
@@ -181,6 +181,7 @@ export async function ensureOwner(input: {
       param.string('email', input.email),
       param.string('firstName', input.firstName),
       param.string('lastName', input.lastName),
+      param.string('role', input.role ?? 'homeowner'),
       param.stringOrNull('unitId', unitId),
       param.stringOrNull('phone', input.phone),
       param.string('status', status),
