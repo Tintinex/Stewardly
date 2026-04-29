@@ -346,10 +346,10 @@ export async function getSubscriptionsData(): Promise<SubscriptionsData> {
       FROM subscriptions s WHERE s.status = 'active'
     `),
     query<{ tier: string; count: number; mrr: number }>(`
-      SELECT COALESCE(tier,'none') AS tier, COUNT(*)::int AS count,
+      SELECT COALESCE(s.tier,'none') AS tier, COUNT(*)::int AS count,
              COALESCE(SUM(${mrrCase})::int, 0) AS mrr
-      FROM subscriptions
-      GROUP BY tier ORDER BY mrr DESC
+      FROM subscriptions s
+      GROUP BY s.tier ORDER BY mrr DESC
     `),
     query<{ month: string; mrr: number }>(`
       WITH months AS (

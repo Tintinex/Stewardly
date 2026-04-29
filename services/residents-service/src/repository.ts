@@ -594,7 +594,10 @@ export async function updateMemberStatus(
      WHERE id = :memberId AND hoa_id = :hoaId`,
     [param.string('status', status), param.string('memberId', memberId), param.string('hoaId', hoaId)],
   )
-  return getResident(hoaId, memberId)
+  return queryOne<Member>(
+    `${RESIDENT_SELECT} WHERE o.id = :memberId AND o.hoa_id = :hoaId`,
+    [param.string('memberId', memberId), param.string('hoaId', hoaId)],
+  )
 }
 
 export async function logMembershipEvent(input: {
