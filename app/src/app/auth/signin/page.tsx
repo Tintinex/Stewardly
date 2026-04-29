@@ -116,9 +116,9 @@ function SignInForm() {
             <input type="checkbox" className="rounded border-gray-300 text-teal focus:ring-teal" />
             Remember me
           </label>
-          <button type="button" className="text-sm text-teal hover:text-teal-600 font-medium">
+          <Link href="/auth/forgot-password" className="text-sm text-teal hover:text-teal-600 font-medium">
             Forgot password?
-          </button>
+          </Link>
         </div>
 
         <Button type="submit" className="w-full" isLoading={isLoading}>
