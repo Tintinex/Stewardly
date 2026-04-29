@@ -1,6 +1,15 @@
 import { query, queryOne, execute, param } from '../../shared/db/client'
 import type { Meeting, AgendaItem, CreateMeetingInput } from './types'
 
+/** Resolve a Cognito sub to the owner's DB id within an HOA. */
+async function resolveOwnerId(hoaId: string, cognitoSub: string): Promise<string | null> {
+  const row = await queryOne<{ id: string }>(
+    'SELECT id FROM owners WHERE hoa_id = :hoaId AND cognito_sub = :cognitoSub LIMIT 1',
+    [param.string('hoaId', hoaId), param.string('cognitoSub', cognitoSub)],
+  )
+  return row?.id ?? null
+}
+
 export async function listMeetings(hoaId: string): Promise<Meeting[]> {
   const meetings = await query<Omit<Meeting, 'agendaItems'>>(
     'SELECT * FROM meetings WHERE hoa_id = :hoaId ORDER BY scheduled_at DESC',
@@ -29,6 +38,10 @@ async function getAgendaItems(meetingId: string): Promise<AgendaItem[]> {
 }
 
 export async function createMeeting(hoaId: string, userId: string, input: CreateMeetingInput): Promise<Meeting | null> {
+  // userId is the Cognito sub — resolve to the owner's DB id for the FK constraint
+  const ownerId = await resolveOwnerId(hoaId, userId)
+  if (!ownerId) throw new Error(`No owner record found for user ${userId} in HOA ${hoaId}`)
+
   const row = await queryOne<{ id: string }>(
     `INSERT INTO meetings (id, hoa_id, title, scheduled_at, location, status, created_by_id)
      VALUES (gen_random_uuid(), :hoaId, :title, :scheduledAt, :location, 'scheduled', :createdById)
@@ -38,7 +51,7 @@ export async function createMeeting(hoaId: string, userId: string, input: Create
       param.string('title', input.title),
       param.string('scheduledAt', input.scheduledAt),
       param.stringOrNull('location', input.location),
-      param.string('createdById', userId),
+      param.string('createdById', ownerId),
     ],
   )
   if (!row?.id) return null

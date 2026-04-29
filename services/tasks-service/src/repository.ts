@@ -1,6 +1,15 @@
 import { query, queryOne, execute, param } from '../../shared/db/client'
 import type { Task, CreateTaskInput, UpdateTaskInput } from './types'
 
+/** Resolve a Cognito sub to the owner's DB id within an HOA. */
+async function resolveOwnerId(hoaId: string, cognitoSub: string): Promise<string | null> {
+  const row = await queryOne<{ id: string }>(
+    'SELECT id FROM owners WHERE hoa_id = :hoaId AND cognito_sub = :cognitoSub LIMIT 1',
+    [param.string('hoaId', hoaId), param.string('cognitoSub', cognitoSub)],
+  )
+  return row?.id ?? null
+}
+
 const TASK_SELECT = `
   SELECT t.*, CONCAT(u.first_name, ' ', u.last_name) AS assignee_name
   FROM tasks t
@@ -26,6 +35,10 @@ export async function getTask(hoaId: string, taskId: string): Promise<Task | nul
 }
 
 export async function createTask(hoaId: string, userId: string, input: CreateTaskInput): Promise<Task | null> {
+  // userId is the Cognito sub — resolve to the owner's DB id for the FK constraint
+  const ownerId = await resolveOwnerId(hoaId, userId)
+  if (!ownerId) throw new Error(`No owner record found for user ${userId} in HOA ${hoaId}`)
+
   await execute(
     `INSERT INTO tasks (id, hoa_id, title, description, status, priority, assignee_id, due_date, created_by_id)
      VALUES (gen_random_uuid(), :hoaId, :title, :description, 'todo', :priority, :assigneeId, :dueDate, :createdById)`,
@@ -36,15 +49,15 @@ export async function createTask(hoaId: string, userId: string, input: CreateTas
       param.string('priority', input.priority),
       param.stringOrNull('assigneeId', input.assigneeId),
       param.stringOrNull('dueDate', input.dueDate),
-      param.string('createdById', userId),
+      param.string('createdById', ownerId),
     ],
   )
   // Fetch the row we just inserted
   return queryOne<Task>(
     `${TASK_SELECT}
-     WHERE t.hoa_id = :hoaId AND t.created_by_id = :userId
+     WHERE t.hoa_id = :hoaId AND t.created_by_id = :ownerId
      ORDER BY t.created_at DESC LIMIT 1`,
-    [param.string('hoaId', hoaId), param.string('userId', userId)],
+    [param.string('hoaId', hoaId), param.string('ownerId', ownerId)],
   )
 }
 
