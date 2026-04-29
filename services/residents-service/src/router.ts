@@ -17,12 +17,17 @@ import { handleUpdateMemberStatus } from './handlers/update-member-status'
 import { handleGetHoaInviteCode, handleRotateHoaInviteCode } from './handlers/hoa-invite-code'
 import { handleActivityLog } from './handlers/activity-log'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   const { hoaId, userId, role } = event.requestContext.authorizer.lambda
 
   const method = event.requestContext.http.method
   const path = event.requestContext.http.path
   const residentId = event.pathParameters?.residentId
+
+  // Routes that don't need a valid hoaId (they read it from the JWT themselves or are public)
+  // must be listed BEFORE the UUID guard below.
 
   // GET /api/residents/me — return current user's profile (name, hoaName, avatarUrl, etc.)
   // Supports ?avatarUpload=true to get a presigned PUT URL for photo upload
@@ -103,8 +108,12 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
     return handleActivityLog(event, hoaId, role)
   }
 
-  // Remaining routes require hoaId
+  // Remaining routes require a valid UUID hoaId
   if (!hoaId) return r.unauthorized()
+  if (!UUID_RE.test(hoaId)) {
+    console.error(`[residents-service] Invalid hoaId in token: ${hoaId}`)
+    return r.badRequest('Your account is not linked to a valid community. Please contact support.')
+  }
 
   if (method === 'GET' && !residentId)        return handleList(hoaId, userId, role)
   if (method === 'POST')                       return handleCreate(event.body ?? null, hoaId, userId, role)
