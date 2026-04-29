@@ -24,8 +24,29 @@ export interface AdminUserRecord {
   role: string
   hoaId: string
   hoaName: string | null
+  phone: string | null
   status: 'active' | 'disabled'
+  dbStatus: string
+  cognitoSub: string | null
   cognitoUsername: string | null
+  createdAt: string
+}
+
+export interface HoaHealth {
+  openTasks: number
+  overdueTasks: number
+  inProgressTasks: number
+  upcomingMeetings: Array<{ id: string; title: string; scheduledAt: string; location: string | null }>
+  openMaintenance: number
+  documentsCount: number
+  pendingMembers: number
+  recentActivity: Array<{ id: string; action: string; ownerName: string | null; createdAt: string }>
+}
+
+export interface InviteCodeData {
+  code: string
+  usedCount: number
+  expiresAt: string | null
   createdAt: string
 }
 

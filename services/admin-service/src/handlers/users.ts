@@ -1,32 +1,40 @@
 import * as r from '../../../shared/response'
-import { listUsers, writeAuditLog } from '../repository'
+import { listUsers, writeAuditLog, removeUserFromHoa, getOwnerCognitoSub, updateOwnerRoleByCognitoSub } from '../repository'
 import {
   listCognitoUsers,
   adminDisableUser,
   adminEnableUser,
   adminResetUserPassword,
   adminUpdateUserRole,
+  clearUserHoaAttribute,
 } from '../cognito'
 
 export async function handleListUsers(hoaId?: string): Promise<r.ApiResponse> {
-  const [dbUsers, cognitoUsers] = await Promise.all([
-    listUsers(hoaId),
-    listCognitoUsers(hoaId),
-  ])
+  if (hoaId) {
+    // Cognito ListUsers can't filter by custom attributes — use DB only for HOA-scoped view
+    const dbUsers = await listUsers(hoaId)
+    return r.ok(dbUsers.map(u => ({
+      ...u,
+      status: (u.dbStatus === 'active' ? 'active' : 'disabled') as 'active' | 'disabled',
+      cognitoUsername: u.cognitoSub ?? null,
+    })))
+  }
 
-  // Merge DB records with Cognito status
+  // All-users view: merge DB + Cognito for enabled/disabled status
+  const [dbUsers, cognitoUsers] = await Promise.all([
+    listUsers(),
+    listCognitoUsers(),
+  ])
   const cognitoMap = new Map(cognitoUsers.map(u => [u.email, u]))
   const merged = dbUsers.map(u => ({
     ...u,
-    status: cognitoMap.get(u.email)?.status ?? 'active',
-    cognitoUsername: cognitoMap.get(u.email)?.username ?? null,
+    status: (cognitoMap.get(u.email)?.status ?? 'active') as 'active' | 'disabled',
+    cognitoUsername: cognitoMap.get(u.email)?.username ?? u.cognitoSub ?? null,
   }))
-
   return r.ok(merged)
 }
 
 export async function handleDisableUser(userId: string, adminUserId: string): Promise<r.ApiResponse> {
-  // userId here is the Cognito username (sub or username)
   await adminDisableUser(userId)
   await writeAuditLog(adminUserId, 'DISABLE_USER', 'user', userId, {})
   return r.ok({ success: true })
@@ -59,7 +67,32 @@ export async function handleUpdateUserRole(
   }
   if (!input.role) return r.badRequest('role is required')
 
-  await adminUpdateUserRole(userId, input.role)
+  // Update both Cognito attribute and DB owners record
+  await Promise.all([
+    adminUpdateUserRole(userId, input.role),
+    updateOwnerRoleByCognitoSub(userId, input.role),
+  ])
   await writeAuditLog(adminUserId, 'UPDATE_ROLE', 'user', userId, { role: input.role })
+  return r.ok({ success: true })
+}
+
+export async function handleRemoveUser(
+  hoaId: string,
+  ownerId: string,
+  adminUserId: string,
+): Promise<r.ApiResponse> {
+  // Look up cognito sub before soft-deleting the owner record
+  const cognitoSub = await getOwnerCognitoSub(ownerId, hoaId)
+
+  // Soft-delete owner (status → inactive) to preserve task/meeting FK history
+  await removeUserFromHoa(hoaId, ownerId)
+
+  // Revoke Cognito access so they can't log back in and recreate the row
+  if (cognitoSub) {
+    await adminDisableUser(cognitoSub)
+    await clearUserHoaAttribute(cognitoSub)
+  }
+
+  await writeAuditLog(adminUserId, 'REMOVE_USER', 'user', ownerId, { hoaId })
   return r.ok({ success: true })
 }

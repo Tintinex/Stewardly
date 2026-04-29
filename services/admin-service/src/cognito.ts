@@ -19,24 +19,35 @@ export interface CognitoUser {
   enabled: boolean
 }
 
+/**
+ * List Cognito users. NOTE: Cognito ListUsers does NOT support filtering by
+ * custom attributes (e.g. custom:hoaId) — only standard attributes are
+ * filterable. When hoaId is provided we skip Cognito entirely and rely on the
+ * DB owners table for status; the caller merges appropriately.
+ */
 export async function listCognitoUsers(hoaId?: string): Promise<CognitoUser[]> {
-  const filter = hoaId
-    ? `custom:hoaId = "${hoaId}"`
-    : undefined
+  if (hoaId) return [] // per-HOA view uses DB status — see handleListUsers
 
-  const cmd = new ListUsersCommand({
-    UserPoolId: USER_POOL_ID,
-    Filter: filter,
-    Limit: 60,
-  })
-
-  const res = await client.send(cmd)
-  return (res.Users ?? []).map((u: UserType) => ({
-    username: u.Username ?? '',
-    email: u.Attributes?.find((a: AttributeType) => a.Name === 'email')?.Value ?? '',
-    status: u.Enabled ? 'active' : 'disabled',
-    enabled: u.Enabled ?? false,
-  }))
+  const users: CognitoUser[] = []
+  let paginationToken: string | undefined
+  do {
+    const cmd = new ListUsersCommand({
+      UserPoolId: USER_POOL_ID,
+      Limit: 60,
+      ...(paginationToken ? { PaginationToken: paginationToken } : {}),
+    })
+    const res = await client.send(cmd)
+    for (const u of res.Users ?? []) {
+      users.push({
+        username: u.Username ?? '',
+        email: u.Attributes?.find((a: AttributeType) => a.Name === 'email')?.Value ?? '',
+        status: u.Enabled ? 'active' : 'disabled',
+        enabled: u.Enabled ?? false,
+      })
+    }
+    paginationToken = res.PaginationToken
+  } while (paginationToken)
+  return users
 }
 
 export async function adminDisableUser(username: string): Promise<void> {
@@ -57,4 +68,16 @@ export async function adminUpdateUserRole(username: string, role: string): Promi
     Username: username,
     UserAttributes: [{ Name: 'custom:role', Value: role }],
   }))
+}
+
+export async function clearUserHoaAttribute(username: string): Promise<void> {
+  try {
+    await client.send(new AdminUpdateUserAttributesCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: username,
+      UserAttributes: [{ Name: 'custom:hoaId', Value: '' }],
+    }))
+  } catch {
+    // Best-effort — don't fail the remove operation if Cognito update fails
+  }
 }

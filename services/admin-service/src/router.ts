@@ -1,7 +1,8 @@
 import type { LambdaEvent } from '../../shared/types'
 import * as r from '../../shared/response'
 import { handleListHoas, handleGetHoa, handleUpdateHoa } from './handlers/hoas'
-import { handleListUsers, handleDisableUser, handleEnableUser, handleResetPassword, handleUpdateUserRole } from './handlers/users'
+import { handleListUsers, handleDisableUser, handleEnableUser, handleResetPassword, handleUpdateUserRole, handleRemoveUser } from './handlers/users'
+import { handleGetHoaHealth } from './handlers/health'
 import { handlePlatformStats } from './handlers/stats'
 import { handleMonitoring } from './handlers/monitoring'
 import { handleBilling } from './handlers/billing'
@@ -25,6 +26,10 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   // GET /api/admin/hoas
   if (method === 'GET' && path === '/api/admin/hoas') return handleListHoas()
 
+  // GET /api/admin/hoas/:hoaId/health
+  const healthMatch = path.match(/^\/api\/admin\/hoas\/([^/]+)\/health$/)
+  if (healthMatch && method === 'GET') return handleGetHoaHealth(healthMatch[1])
+
   // GET/POST /api/admin/hoas/:hoaId/invite-code
   const inviteCodeMatch = path.match(/^\/api\/admin\/hoas\/([^/]+)\/invite-code$/)
   if (inviteCodeMatch) {
@@ -35,6 +40,10 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   // POST /api/admin/hoas/:hoaId/admin-user — create board_admin Cognito user
   const adminUserMatch = path.match(/^\/api\/admin\/hoas\/([^/]+)\/admin-user$/)
   if (adminUserMatch && method === 'POST') return handleCreateHoaAdmin(adminUserMatch[1], event.body ?? null, userId)
+
+  // DELETE /api/admin/hoas/:hoaId/users/:ownerId — remove member from HOA
+  const removeUserMatch = path.match(/^\/api\/admin\/hoas\/([^/]+)\/users\/([^/]+)$/)
+  if (removeUserMatch && method === 'DELETE') return handleRemoveUser(removeUserMatch[1], removeUserMatch[2], userId)
 
   // GET /api/admin/hoas/:hoaId
   const hoaMatch = path.match(/^\/api\/admin\/hoas\/([^/]+)$/)

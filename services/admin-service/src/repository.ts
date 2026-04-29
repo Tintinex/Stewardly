@@ -81,26 +81,117 @@ export async function updateHoa(hoaId: string, input: UpdateHoaInput): Promise<H
 
 export async function listUsers(hoaId?: string): Promise<Array<{
   id: string; email: string; firstName: string; lastName: string
-  role: string; hoaId: string; hoaName: string | null; createdAt: string
+  role: string; hoaId: string; hoaName: string | null
+  cognitoSub: string | null; dbStatus: string; phone: string | null
+  createdAt: string
 }>> {
   if (hoaId) {
     return query(`
-      SELECT o.id, o.email, o.first_name, o.last_name, o.role,
-             o.hoa_id, h.name AS hoa_name, o.created_at
+      SELECT o.id, o.email, o.first_name AS "firstName", o.last_name AS "lastName", o.role,
+             o.hoa_id AS "hoaId", h.name AS "hoaName",
+             o.cognito_sub AS "cognitoSub", o.status AS "dbStatus", o.phone,
+             o.created_at AS "createdAt"
       FROM owners o
       LEFT JOIN hoas h ON h.id = o.hoa_id
       WHERE o.hoa_id = :hoaId
-      ORDER BY o.created_at DESC
+      ORDER BY
+        CASE o.role WHEN 'board_admin' THEN 1 WHEN 'board_member' THEN 2 ELSE 3 END,
+        o.created_at DESC
     `, [param.string('hoaId', hoaId)])
   }
   return query(`
-    SELECT o.id, o.email, o.first_name, o.last_name, o.role,
-           o.hoa_id, h.name AS hoa_name, o.created_at
+    SELECT o.id, o.email, o.first_name AS "firstName", o.last_name AS "lastName", o.role,
+           o.hoa_id AS "hoaId", h.name AS "hoaName",
+           o.cognito_sub AS "cognitoSub", o.status AS "dbStatus", o.phone,
+           o.created_at AS "createdAt"
     FROM owners o
     LEFT JOIN hoas h ON h.id = o.hoa_id
     ORDER BY o.created_at DESC
     LIMIT 500
   `)
+}
+
+export async function getOwnerCognitoSub(ownerId: string, hoaId: string): Promise<string | null> {
+  const row = await queryOne<{ cognitoSub: string | null }>(
+    `SELECT cognito_sub AS "cognitoSub" FROM owners WHERE id = :ownerId AND hoa_id = :hoaId`,
+    [param.string('ownerId', ownerId), param.string('hoaId', hoaId)],
+  )
+  return row?.cognitoSub ?? null
+}
+
+export async function removeUserFromHoa(hoaId: string, ownerId: string): Promise<void> {
+  // Soft-delete: set status = inactive so FK constraints on tasks/meetings are preserved
+  await execute(
+    `UPDATE owners SET status = 'inactive', updated_at = NOW() WHERE id = :ownerId AND hoa_id = :hoaId`,
+    [param.string('ownerId', ownerId), param.string('hoaId', hoaId)],
+  )
+}
+
+export async function updateOwnerRoleByCognitoSub(cognitoSub: string, role: string): Promise<void> {
+  await execute(
+    `UPDATE owners SET role = :role, updated_at = NOW() WHERE cognito_sub = :cognitoSub`,
+    [param.string('role', role), param.string('cognitoSub', cognitoSub)],
+  )
+}
+
+export interface HoaHealth {
+  openTasks: number
+  overdueTasks: number
+  inProgressTasks: number
+  upcomingMeetings: Array<{ id: string; title: string; scheduledAt: string; location: string | null }>
+  openMaintenance: number
+  documentsCount: number
+  pendingMembers: number
+  recentActivity: Array<{ id: string; action: string; ownerName: string | null; createdAt: string }>
+}
+
+export async function getHoaHealth(hoaId: string): Promise<HoaHealth> {
+  const [taskStats, upcomingMeetings, openMaintenance, documentsCount, pendingMembers, recentActivity] =
+    await Promise.all([
+      queryOne<{ open: number; overdue: number; inProgress: number }>(`
+        SELECT
+          COUNT(*) FILTER (WHERE status != 'done')::int                              AS open,
+          COUNT(*) FILTER (WHERE status != 'done' AND due_date < NOW())::int         AS overdue,
+          COUNT(*) FILTER (WHERE status = 'in_progress')::int                       AS "inProgress"
+        FROM tasks WHERE hoa_id = :hoaId
+      `, [param.string('hoaId', hoaId)]),
+      query<{ id: string; title: string; scheduledAt: string; location: string | null }>(`
+        SELECT id, title, scheduled_at AS "scheduledAt", location
+        FROM meetings
+        WHERE hoa_id = :hoaId AND scheduled_at >= NOW()
+        ORDER BY scheduled_at ASC LIMIT 5
+      `, [param.string('hoaId', hoaId)]),
+      queryOne<{ count: number }>(`
+        SELECT COUNT(*)::int AS count FROM maintenance_requests
+        WHERE hoa_id = :hoaId AND status NOT IN ('resolved', 'closed')
+      `, [param.string('hoaId', hoaId)]),
+      queryOne<{ count: number }>(`
+        SELECT COUNT(*)::int AS count FROM documents WHERE hoa_id = :hoaId
+      `, [param.string('hoaId', hoaId)]),
+      queryOne<{ count: number }>(`
+        SELECT COUNT(*)::int AS count FROM owners WHERE hoa_id = :hoaId AND status = 'pending'
+      `, [param.string('hoaId', hoaId)]),
+      query<{ id: string; action: string; ownerName: string | null; createdAt: string }>(`
+        SELECT al.id, al.action,
+               CONCAT(o.first_name, ' ', o.last_name) AS "ownerName",
+               al.created_at AS "createdAt"
+        FROM user_activity_log al
+        LEFT JOIN owners o ON o.id = al.owner_id
+        WHERE al.hoa_id = :hoaId
+        ORDER BY al.created_at DESC LIMIT 10
+      `, [param.string('hoaId', hoaId)]),
+    ])
+
+  return {
+    openTasks: taskStats?.open ?? 0,
+    overdueTasks: taskStats?.overdue ?? 0,
+    inProgressTasks: taskStats?.inProgress ?? 0,
+    upcomingMeetings,
+    openMaintenance: openMaintenance?.count ?? 0,
+    documentsCount: documentsCount?.count ?? 0,
+    pendingMembers: pendingMembers?.count ?? 0,
+    recentActivity,
+  }
 }
 
 // ── Platform stats ───────────────────────────────────────────────────────────
