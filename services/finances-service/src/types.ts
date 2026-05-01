@@ -27,6 +27,8 @@ export interface Account {
   balance: number
   currency: string
   lastSyncedAt: string
+  plaidItemId: string | null
+  plaidAccountId: string | null
 }
 
 export interface Transaction {
@@ -122,4 +124,36 @@ export interface CreateAssessmentInput {
   description: string
   dueDate: string
   notes?: string
+}
+
+// ── Plaid ──────────────────────────────────────────────────────────────────────
+
+export interface PlaidItemRecord {
+  id: string
+  hoaId: string
+  itemId: string
+  accessToken: string
+  institutionId: string
+  institutionName: string
+  cursor: string | null
+  status: 'active' | 'error' | 'item_login_required'
+  errorCode: string | null
+  lastSyncedAt: string | null
+  createdAt: string
+}
+
+export interface PlaidItemPublic {
+  id: string
+  institutionName: string
+  status: 'active' | 'error' | 'item_login_required'
+  errorCode: string | null
+  lastSyncedAt: string | null
+  accountCount: number
+}
+
+export interface PlaidSyncResult {
+  itemId: string
+  added: number
+  modified: number
+  removed: number
 }

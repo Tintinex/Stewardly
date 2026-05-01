@@ -141,6 +141,28 @@ export class ApiStack extends cdk.Stack {
       secretStringValue: cdk.SecretValue.unsafePlainText('REPLACE_ME'),
     })
 
+    // ── Plaid credentials secret ──────────────────────────────────────────────
+    // Create once; update values via AWS Console or CLI:
+    //   aws secretsmanager update-secret \
+    //     --secret-id stewardly/dev/plaid-credentials \
+    //     --secret-string '{"clientId":"...","secret":"...","environment":"sandbox"}'
+    const plaidSecret = new secretsmanager.Secret(this, 'PlaidCredentials', {
+      secretName: `stewardly/${stage}/plaid-credentials`,
+      description: 'Plaid API credentials for bank account connectivity',
+      secretStringValue: cdk.SecretValue.unsafePlainText(
+        JSON.stringify({ clientId: 'REPLACE_ME', secret: 'REPLACE_ME', environment: 'sandbox' }),
+      ),
+    })
+
+    // Give finances Lambda access to Plaid secret
+    financesLambda.function.addEnvironment('PLAID_SECRET_ARN', plaidSecret.secretArn)
+    financesLambda.function.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['secretsmanager:GetSecretValue'],
+        resources: [plaidSecret.secretArn],
+      }),
+    )
+
     // ── Document Processor Lambda ─────────────────────────────────────────────
     // Invoked async (InvocationType: Event) from residents-service after upload.
     const documentProcessorLambda = new SecureLambda(this, 'DocumentProcessorLambda', {
@@ -288,6 +310,11 @@ export class ApiStack extends cdk.Stack {
       { id: 'FinancesAssessments',         path: '/api/finances/assessments',                         methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],                            fn: financesLambda.function },
       { id: 'FinancesAssessmentsBulk',     path: '/api/finances/assessments/bulk',                    methods: [apigatewayv2.HttpMethod.POST],                                                        fn: financesLambda.function },
       { id: 'FinancesAssessmentById',      path: '/api/finances/assessments/{assessmentId}',          methods: [apigatewayv2.HttpMethod.PATCH, apigatewayv2.HttpMethod.DELETE],                        fn: financesLambda.function },
+      { id: 'FinancesPlaidLinkToken',     path: '/api/finances/plaid/link-token',                    methods: [apigatewayv2.HttpMethod.POST],                                                        fn: financesLambda.function },
+      { id: 'FinancesPlaidExchange',      path: '/api/finances/plaid/exchange',                      methods: [apigatewayv2.HttpMethod.POST],                                                        fn: financesLambda.function },
+      { id: 'FinancesPlaidItems',         path: '/api/finances/plaid/items',                         methods: [apigatewayv2.HttpMethod.GET],                                                         fn: financesLambda.function },
+      { id: 'FinancesPlaidItemById',      path: '/api/finances/plaid/items/{itemId}',                methods: [apigatewayv2.HttpMethod.DELETE],                                                      fn: financesLambda.function },
+      { id: 'FinancesPlaidSync',          path: '/api/finances/plaid/sync/{itemId}',                 methods: [apigatewayv2.HttpMethod.POST],                                                        fn: financesLambda.function },
       // Resident-facing routes
       { id: 'EnsureOwner',       path: '/api/residents/me',              methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST, apigatewayv2.HttpMethod.PATCH], fn: residentsLambda.function },
       { id: 'MyUnit',            path: '/api/my-unit',                   methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },

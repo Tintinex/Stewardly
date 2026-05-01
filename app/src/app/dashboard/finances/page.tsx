@@ -6,7 +6,7 @@ import {
   CheckCircle, AlertCircle, Clock, Trash2, Edit2, ChevronDown,
   BarChart2, FileText, CreditCard, Users, Lightbulb, ArrowUpRight,
   ArrowDownRight, RefreshCw, Building, Filter, Search, AlertTriangle,
-  Check, TrendingDown,
+  Check, TrendingDown, Link, Unlink, WifiOff,
 } from 'lucide-react'
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis,
@@ -14,6 +14,7 @@ import {
   PieChart, Pie, Cell,
 } from 'recharts'
 import { format, parseISO } from 'date-fns'
+import { usePlaidLink } from 'react-plaid-link'
 import { useAuth } from '@/contexts/AuthContext'
 import { config } from '@/lib/config'
 import { getAuthToken } from '@/lib/amplify'
@@ -26,7 +27,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { clsx } from 'clsx'
 import type {
   Financials, BudgetWithLineItems, Transaction, FinanceAccount,
-  Assessment, AnalyticsData,
+  Assessment, AnalyticsData, PlaidItem,
 } from '@/types'
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
@@ -90,9 +91,12 @@ export default function FinancesPage() {
   const [txnTotal, setTxnTotal] = useState(0)
   const [txnCategories, setTxnCategories] = useState<string[]>([])
   const [accounts, setAccounts] = useState<FinanceAccount[]>([])
+  const [plaidItems, setPlaidItems] = useState<PlaidItem[]>([])
   const [assessments, setAssessments] = useState<Assessment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [syncingItemId, setSyncingItemId] = useState<string | null>(null)
+  const [syncResult, setSyncResult] = useState<{ itemId: string; added: number; modified: number } | null>(null)
 
   // Filters
   const [txnSearch, setTxnSearch] = useState('')
@@ -147,8 +151,12 @@ export default function FinancesPage() {
   }, [txnSearch, txnCategory, txnType, txnPage])
 
   const loadAccounts = useCallback(async () => {
-    const data = await apiFetch<{ accounts: FinanceAccount[] }>('/api/finances/accounts')
-    setAccounts(data.accounts)
+    const [acctData, plaidData] = await Promise.all([
+      apiFetch<{ accounts: FinanceAccount[] }>('/api/finances/accounts'),
+      apiFetch<{ items: PlaidItem[] }>('/api/finances/plaid/items'),
+    ])
+    setAccounts(acctData.accounts)
+    setPlaidItems(plaidData.items)
   }, [])
 
   const loadAssessments = useCallback(async () => {
@@ -738,63 +746,222 @@ export default function FinancesPage() {
 
       {/* ── Accounts Tab ─────────────────────────────────────────────────── */}
       {tab === 'accounts' && (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-gray-500">{accounts.length} account{accounts.length !== 1 ? 's' : ''} connected</p>
-            {isBoard && <Button size="sm" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={() => setAddAcctOpen(true)}>Add Account</Button>}
-          </div>
+        <div className="space-y-6">
 
-          {accounts.length === 0 ? (
-            <Card>
-              <CardContent className="py-12">
-                <EmptyPrompt icon={<CreditCard className="h-12 w-12 text-gray-200" />} title="No accounts added" description="Add your HOA bank accounts to track balances and manage transactions." action={isBoard ? { label: 'Add Account', onClick: () => setAddAcctOpen(true) } : undefined} />
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {accounts.map(acct => (
-                <Card key={acct.id}>
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-semibold text-gray-900">{acct.accountName}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{acct.institutionName}</p>
-                        <Badge className="mt-2 bg-gray-100 text-gray-600 text-xs capitalize">{acct.accountType.replace('_', ' ')}</Badge>
+          {/* ── Connected Institutions (Plaid) ───────────────────────────── */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">Connected Bank Accounts</CardTitle>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    Link your HOA bank accounts to automatically import transactions.
+                  </p>
+                </div>
+                {isBoard && (
+                  <PlaidLinkButton
+                    onSuccess={async () => {
+                      await loadAccounts()
+                      await loadSummary()
+                    }}
+                  />
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {plaidItems.length === 0 ? (
+                <div className="py-8 text-center">
+                  <Building className="h-10 w-10 text-gray-200 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-gray-600">No bank connections yet</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Connect your HOA&#39;s bank to automatically sync transactions.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {plaidItems.map(item => (
+                    <div key={item.id} className="py-4 first:pt-0 last:pb-0">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={clsx(
+                            'flex h-9 w-9 items-center justify-center rounded-full',
+                            item.status === 'active' ? 'bg-green-50' :
+                            item.status === 'item_login_required' ? 'bg-amber-50' : 'bg-red-50',
+                          )}>
+                            {item.status === 'active'
+                              ? <Link className="h-4 w-4 text-green-600" />
+                              : item.status === 'item_login_required'
+                              ? <WifiOff className="h-4 w-4 text-amber-600" />
+                              : <AlertCircle className="h-4 w-4 text-red-600" />
+                            }
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm text-gray-900">{item.institutionName}</p>
+                            <p className="text-xs text-gray-500">
+                              {item.accountCount} account{item.accountCount !== 1 ? 's' : ''}
+                              {item.lastSyncedAt && (
+                                <> · Last synced {format(parseISO(item.lastSyncedAt), 'MMM d, h:mm a')}</>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {item.status === 'item_login_required' && isBoard && (
+                            <PlaidLinkButton
+                              itemId={item.id}
+                              label="Re-connect"
+                              variant="outline"
+                              onSuccess={async () => { await loadAccounts(); await loadSummary() }}
+                            />
+                          )}
+                          {item.status === 'active' && isBoard && (
+                            <button
+                              className={clsx(
+                                'flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50',
+                              )}
+                              disabled={syncingItemId === item.id}
+                              onClick={async () => {
+                                setSyncingItemId(item.id)
+                                setSyncResult(null)
+                                try {
+                                  const res = await apiFetch<{ added: number; modified: number }>(
+                                    `/api/finances/plaid/sync/${item.id}`,
+                                    { method: 'POST' },
+                                  )
+                                  setSyncResult({ itemId: item.id, added: res.added, modified: res.modified })
+                                  await loadAccounts()
+                                  await loadTransactions()
+                                  await loadSummary()
+                                } catch (e) {
+                                  alert((e as Error).message)
+                                } finally {
+                                  setSyncingItemId(null)
+                                }
+                              }}
+                            >
+                              {syncingItemId === item.id
+                                ? <><Spinner size="sm" />&nbsp;Syncing…</>
+                                : <><RefreshCw className="h-3 w-3" />Sync Now</>
+                              }
+                            </button>
+                          )}
+                          {item.status === 'active' && syncResult?.itemId === item.id && (
+                            <span className="text-xs text-green-600 font-medium">
+                              +{syncResult.added} new
+                            </span>
+                          )}
+                          {isBoard && (
+                            <button
+                              className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                              title="Disconnect bank"
+                              onClick={async () => {
+                                if (!confirm(`Disconnect ${item.institutionName}? This will not delete existing transactions.`)) return
+                                try {
+                                  await apiFetch(`/api/finances/plaid/items/${item.id}`, { method: 'DELETE' })
+                                  loadAccounts()
+                                } catch (e) { alert((e as Error).message) }
+                              }}
+                            >
+                              <Unlink className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      {isBoard && (
-                        <button className="text-gray-400 hover:text-red-500" onClick={async () => {
-                          if (!confirm('Remove this account? This will fail if it has transactions.')) return
-                          try {
-                            await apiFetch(`/api/finances/accounts/${acct.id}`, { method: 'DELETE' })
-                            loadAccounts()
-                          } catch (e) {
-                            alert((e as Error).message)
-                          }
-                        }}>
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                      {item.status !== 'active' && (
+                        <p className="mt-2 ml-12 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-1.5">
+                          {item.status === 'item_login_required'
+                            ? 'Your bank requires you to re-authenticate. Click Re-connect to restore access.'
+                            : `Error: ${item.errorCode ?? 'Unknown error'}. Please reconnect this account.`}
+                        </p>
                       )}
                     </div>
-                    <p className="mt-4 text-2xl font-bold text-gray-900">{fmt$(acct.balance)}</p>
-                    <p className="mt-1 text-xs text-gray-400">
-                      Updated {format(parseISO(acct.lastSyncedAt), 'MMM d, h:mm a')}
-                    </p>
-                    {isBoard && (
-                      <button className="mt-3 w-full rounded-lg border border-gray-200 py-1.5 text-xs text-gray-600 hover:bg-gray-50" onClick={() => {
-                        const balStr = prompt('Enter new balance:', String(acct.balance))
-                        const bal = parseFloat(balStr ?? '')
-                        if (!isNaN(bal)) {
-                          apiFetch(`/api/finances/accounts/${acct.id}`, { method: 'PATCH', body: JSON.stringify({ balance: bal }) }).then(loadAccounts)
-                        }
-                      }}>
-                        <RefreshCw className="h-3 w-3 inline mr-1" />Update Balance
-                      </button>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── Account Balances ─────────────────────────────────────────── */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">Account Balances</h3>
+              {isBoard && (
+                <Button size="sm" variant="ghost" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={() => setAddAcctOpen(true)}>
+                  Add Manual Account
+                </Button>
+              )}
             </div>
-          )}
+
+            {accounts.length === 0 ? (
+              <Card>
+                <CardContent className="py-10">
+                  <EmptyPrompt
+                    icon={<CreditCard className="h-12 w-12 text-gray-200" />}
+                    title="No accounts"
+                    description="Connect a bank above or add a manual account to track balances."
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {accounts.map(acct => (
+                  <Card key={acct.id}>
+                    <CardContent className="p-5">
+                      <div className="flex items-start justify-between">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-gray-900 truncate">{acct.accountName}</p>
+                            {acct.plaidItemId && (
+                              <span title="Connected via Plaid" className="flex-shrink-0">
+                                <Link className="h-3 w-3 text-green-500" />
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5 truncate">{acct.institutionName}</p>
+                          <Badge className="mt-2 bg-gray-100 text-gray-600 text-xs capitalize">
+                            {acct.accountType.replace('_', ' ')}
+                          </Badge>
+                        </div>
+                        {isBoard && !acct.plaidItemId && (
+                          <button
+                            className="text-gray-400 hover:text-red-500 flex-shrink-0"
+                            onClick={async () => {
+                              if (!confirm('Remove this account? This will fail if it has transactions.')) return
+                              try {
+                                await apiFetch(`/api/finances/accounts/${acct.id}`, { method: 'DELETE' })
+                                loadAccounts()
+                              } catch (e) { alert((e as Error).message) }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      <p className="mt-4 text-2xl font-bold text-gray-900">{fmt$(acct.balance)}</p>
+                      <p className="mt-1 text-xs text-gray-400">
+                        Updated {format(parseISO(acct.lastSyncedAt), 'MMM d, h:mm a')}
+                      </p>
+                      {isBoard && !acct.plaidItemId && (
+                        <button
+                          className="mt-3 w-full rounded-lg border border-gray-200 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                          onClick={() => {
+                            const balStr = prompt('Enter new balance:', String(acct.balance))
+                            const bal = parseFloat(balStr ?? '')
+                            if (!isNaN(bal)) {
+                              apiFetch(`/api/finances/accounts/${acct.id}`, { method: 'PATCH', body: JSON.stringify({ balance: bal }) })
+                                .then(loadAccounts)
+                            }
+                          }}
+                        >
+                          <RefreshCw className="h-3 w-3 inline mr-1" />Update Balance
+                        </button>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1437,5 +1604,84 @@ function BulkAssessmentModal({ isOpen, onClose, onSave }: {
         </div>
       </div>
     </Modal>
+  )
+}
+
+// ─── Plaid Link Button ────────────────────────────────────────────────────────
+// Self-contained: fetches link token, opens Plaid Link, exchanges public token.
+
+function PlaidLinkButton({
+  itemId,
+  label = 'Connect Bank Account',
+  variant = 'primary',
+  onSuccess,
+}: {
+  itemId?: string            // Pass to re-auth an existing item
+  label?: string
+  variant?: 'primary' | 'outline'
+  onSuccess?: () => void
+}) {
+  const [linkToken, setLinkToken] = useState<string | null>(null)
+  const [fetchingToken, setFetchingToken] = useState(false)
+  const [exchanging, setExchanging] = useState(false)
+  const [err, setErr] = useState('')
+
+  const { open, ready } = usePlaidLink({
+    token: linkToken ?? '',
+    onSuccess: async (publicToken) => {
+      setExchanging(true)
+      setLinkToken(null)
+      try {
+        await apiFetch('/api/finances/plaid/exchange', {
+          method: 'POST',
+          body: JSON.stringify({ publicToken }),
+        })
+        onSuccess?.()
+      } catch (e) {
+        setErr((e as Error).message)
+      } finally {
+        setExchanging(false)
+      }
+    },
+    onExit: () => setLinkToken(null),
+  })
+
+  // Auto-open once token is ready
+  useEffect(() => {
+    if (linkToken && ready) open()
+  }, [linkToken, ready, open])
+
+  const handleClick = async () => {
+    setErr('')
+    setFetchingToken(true)
+    try {
+      const body = itemId ? JSON.stringify({ itemId }) : undefined
+      const data = await apiFetch<{ linkToken: string }>('/api/finances/plaid/link-token', {
+        method: 'POST',
+        body,
+      })
+      setLinkToken(data.linkToken)
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setFetchingToken(false)
+    }
+  }
+
+  const isLoading = fetchingToken || exchanging || (!!linkToken && !ready)
+
+  return (
+    <div>
+      <Button
+        size="sm"
+        variant={variant}
+        isLoading={isLoading}
+        leftIcon={!isLoading ? <Link className="h-3.5 w-3.5" /> : undefined}
+        onClick={handleClick}
+      >
+        {label}
+      </Button>
+      {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
+    </div>
   )
 }

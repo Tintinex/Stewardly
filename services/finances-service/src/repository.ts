@@ -3,7 +3,7 @@ import type {
   BudgetLineItem, BudgetWithLineItems, Account, Transaction,
   Assessment, FinancialSummary, AnalyticsData, TransactionFilters,
   CreateBudgetInput, CreateTransactionInput, CreateAccountInput,
-  CreateAssessmentInput,
+  CreateAssessmentInput, PlaidItemRecord, PlaidItemPublic, PlaidSyncResult,
 } from './types'
 
 const CHART_COLORS = ['#0C1F3F', '#0D9E8A', '#F5A623', '#3DBDAE', '#4D729A', '#64CBBF', '#9DAFC9', '#C6D0E4']
@@ -67,7 +67,8 @@ export async function getFinancialSummary(hoaId: string): Promise<FinancialSumma
       ),
       query<Account>(
         `SELECT id, institution_name AS "institutionName", account_name AS "accountName",
-                account_type AS "accountType", balance, currency, last_synced_at AS "lastSyncedAt"
+                account_type AS "accountType", balance, currency, last_synced_at AS "lastSyncedAt",
+                plaid_item_id AS "plaidItemId", plaid_account_id AS "plaidAccountId"
          FROM accounts WHERE hoa_id = :hoaId ORDER BY account_type ASC`,
         [param.string('hoaId', hoaId)],
       ),
@@ -352,7 +353,8 @@ export async function getTransactionCategories(hoaId: string): Promise<string[]>
 export async function listAccounts(hoaId: string): Promise<Account[]> {
   return query<Account>(
     `SELECT id, institution_name AS "institutionName", account_name AS "accountName",
-            account_type AS "accountType", balance, currency, last_synced_at AS "lastSyncedAt"
+            account_type AS "accountType", balance, currency, last_synced_at AS "lastSyncedAt",
+            plaid_item_id AS "plaidItemId", plaid_account_id AS "plaidAccountId"
      FROM accounts WHERE hoa_id = :hoaId ORDER BY account_type ASC, account_name ASC`,
     [param.string('hoaId', hoaId)],
   )
@@ -412,7 +414,8 @@ export async function deleteAccount(hoaId: string, accountId: string): Promise<b
 export async function getAccountById(hoaId: string, id: string): Promise<Account | null> {
   return queryOne<Account>(
     `SELECT id, institution_name AS "institutionName", account_name AS "accountName",
-            account_type AS "accountType", balance, currency, last_synced_at AS "lastSyncedAt"
+            account_type AS "accountType", balance, currency, last_synced_at AS "lastSyncedAt",
+            plaid_item_id AS "plaidItemId", plaid_account_id AS "plaidAccountId"
      FROM accounts WHERE id = :id AND hoa_id = :hoaId`,
     [param.string('id', id), param.string('hoaId', hoaId)],
   )
@@ -715,5 +718,247 @@ export async function upsertBudget(hoaId: string, fiscalYear: number, totalAmoun
      VALUES (gen_random_uuid(), :hoaId, :fiscalYear, :totalAmount)
      ON CONFLICT (hoa_id, fiscal_year) DO UPDATE SET total_amount = :totalAmount`,
     [param.string('hoaId', hoaId), param.int('fiscalYear', fiscalYear), param.double('totalAmount', totalAmount)],
+  )
+}
+
+// ── Plaid ─────────────────────────────────────────────────────────────────────
+
+export async function createPlaidItem(
+  hoaId: string,
+  itemId: string,
+  accessToken: string,
+  institutionId: string,
+  institutionName: string,
+): Promise<PlaidItemRecord> {
+  const row = await queryOne<PlaidItemRecord>(
+    `INSERT INTO plaid_items (id, hoa_id, item_id, access_token, institution_id, institution_name, status)
+     VALUES (gen_random_uuid(), :hoaId, :itemId, :accessToken, :institutionId, :institutionName, 'active')
+     RETURNING id, hoa_id AS "hoaId", item_id AS "itemId", access_token AS "accessToken",
+               institution_id AS "institutionId", institution_name AS "institutionName",
+               cursor, status, error_code AS "errorCode", last_synced_at AS "lastSyncedAt",
+               created_at AS "createdAt"`,
+    [
+      param.string('hoaId', hoaId),
+      param.string('itemId', itemId),
+      param.string('accessToken', accessToken),
+      param.string('institutionId', institutionId),
+      param.string('institutionName', institutionName),
+    ],
+  )
+  if (!row) throw new Error('Failed to create Plaid item')
+  return row
+}
+
+export async function getPlaidItems(hoaId: string): Promise<PlaidItemPublic[]> {
+  return query<PlaidItemPublic>(
+    `SELECT p.id, p.institution_name AS "institutionName", p.status,
+            p.error_code AS "errorCode", p.last_synced_at AS "lastSyncedAt",
+            COUNT(a.id)::int AS "accountCount"
+     FROM plaid_items p
+     LEFT JOIN accounts a ON a.plaid_item_id = p.id
+     WHERE p.hoa_id = :hoaId
+     GROUP BY p.id, p.institution_name, p.status, p.error_code, p.last_synced_at
+     ORDER BY p.created_at DESC`,
+    [param.string('hoaId', hoaId)],
+  )
+}
+
+export async function getPlaidItemWithToken(hoaId: string, plaidItemId: string): Promise<PlaidItemRecord | null> {
+  return queryOne<PlaidItemRecord>(
+    `SELECT id, hoa_id AS "hoaId", item_id AS "itemId", access_token AS "accessToken",
+            institution_id AS "institutionId", institution_name AS "institutionName",
+            cursor, status, error_code AS "errorCode", last_synced_at AS "lastSyncedAt",
+            created_at AS "createdAt"
+     FROM plaid_items WHERE id = :id AND hoa_id = :hoaId`,
+    [param.string('id', plaidItemId), param.string('hoaId', hoaId)],
+  )
+}
+
+export async function updatePlaidItemCursor(
+  plaidItemId: string,
+  cursor: string,
+): Promise<void> {
+  await execute(
+    `UPDATE plaid_items
+     SET cursor = :cursor, last_synced_at = NOW(), status = 'active', error_code = NULL, updated_at = NOW()
+     WHERE id = :id`,
+    [param.string('id', plaidItemId), param.string('cursor', cursor)],
+  )
+}
+
+export async function updatePlaidItemStatus(
+  plaidItemId: string,
+  status: 'active' | 'error' | 'item_login_required',
+  errorCode: string | null,
+): Promise<void> {
+  await execute(
+    `UPDATE plaid_items SET status = :status, error_code = :errorCode, updated_at = NOW()
+     WHERE id = :id`,
+    [
+      param.string('id', plaidItemId),
+      param.string('status', status),
+      errorCode ? param.string('errorCode', errorCode) : param.string('errorCode', ''),
+    ],
+  )
+}
+
+export async function deletePlaidItem(hoaId: string, plaidItemId: string): Promise<boolean> {
+  // Nullify account references first
+  await execute(
+    `UPDATE accounts SET plaid_item_id = NULL, plaid_account_id = NULL WHERE plaid_item_id = :id AND hoa_id = :hoaId`,
+    [param.string('id', plaidItemId), param.string('hoaId', hoaId)],
+  )
+  const result = await queryOne<{ count: number }>(
+    `SELECT COUNT(*) AS count FROM plaid_items WHERE id = :id AND hoa_id = :hoaId`,
+    [param.string('id', plaidItemId), param.string('hoaId', hoaId)],
+  )
+  if ((result?.count ?? 0) === 0) return false
+  await execute(
+    `DELETE FROM plaid_items WHERE id = :id AND hoa_id = :hoaId`,
+    [param.string('id', plaidItemId), param.string('hoaId', hoaId)],
+  )
+  return true
+}
+
+export interface PlaidAccountInput {
+  plaidAccountId: string
+  accountName: string
+  accountType: string
+  balance: number
+  currency: string
+  institutionName: string
+}
+
+export async function upsertPlaidAccounts(
+  hoaId: string,
+  plaidItemId: string,
+  accounts: PlaidAccountInput[],
+): Promise<Account[]> {
+  for (const acct of accounts) {
+    await execute(
+      `INSERT INTO accounts
+         (id, hoa_id, plaid_item_id, plaid_account_id, institution_name, account_name,
+          account_type, balance, currency, last_synced_at)
+       VALUES
+         (gen_random_uuid(), :hoaId, :plaidItemId, :plaidAccountId, :institutionName,
+          :accountName, :accountType, :balance, :currency, NOW())
+       ON CONFLICT (plaid_account_id) DO UPDATE SET
+         balance          = EXCLUDED.balance,
+         account_name     = EXCLUDED.account_name,
+         account_type     = EXCLUDED.account_type,
+         last_synced_at   = NOW(),
+         updated_at       = NOW()`,
+      [
+        param.string('hoaId', hoaId),
+        param.string('plaidItemId', plaidItemId),
+        param.string('plaidAccountId', acct.plaidAccountId),
+        param.string('institutionName', acct.institutionName),
+        param.string('accountName', acct.accountName),
+        param.string('accountType', acct.accountType),
+        param.double('balance', acct.balance),
+        param.string('currency', acct.currency || 'USD'),
+      ],
+    )
+  }
+  return query<Account>(
+    `SELECT id, institution_name AS "institutionName", account_name AS "accountName",
+            account_type AS "accountType", balance, currency, last_synced_at AS "lastSyncedAt",
+            plaid_item_id AS "plaidItemId", plaid_account_id AS "plaidAccountId"
+     FROM accounts WHERE plaid_item_id = :plaidItemId AND hoa_id = :hoaId`,
+    [param.string('plaidItemId', plaidItemId), param.string('hoaId', hoaId)],
+  )
+}
+
+export interface PlaidTransactionInput {
+  plaidTxnId: string
+  accountId: string        // our internal account UUID
+  amount: number
+  description: string
+  vendor: string | null
+  category: string
+  date: string             // YYYY-MM-DD
+  type: 'debit' | 'credit'
+}
+
+export async function upsertPlaidTransactions(
+  hoaId: string,
+  txns: PlaidTransactionInput[],
+): Promise<{ added: number; modified: number }> {
+  let added = 0
+  let modified = 0
+
+  for (const txn of txns) {
+    // Check if exists
+    const existing = await queryOne<{ id: string }>(
+      `SELECT id FROM transactions WHERE plaid_txn_id = :plaidTxnId`,
+      [param.string('plaidTxnId', txn.plaidTxnId)],
+    )
+
+    if (existing) {
+      await execute(
+        `UPDATE transactions
+         SET amount = :amount, description = :description, vendor = :vendor,
+             category = :category, date = :date, type = :type, updated_at = NOW()
+         WHERE id = :id`,
+        [
+          param.string('id', existing.id),
+          param.double('amount', txn.amount),
+          param.string('description', txn.description),
+          txn.vendor ? param.string('vendor', txn.vendor) : param.string('vendor', ''),
+          param.string('category', txn.category),
+          param.string('date', txn.date),
+          param.string('type', txn.type),
+        ],
+      )
+      modified++
+    } else {
+      await execute(
+        `INSERT INTO transactions
+           (id, hoa_id, account_id, plaid_txn_id, amount, description, vendor,
+            category, date, type, is_manual)
+         VALUES
+           (gen_random_uuid(), :hoaId, :accountId, :plaidTxnId, :amount, :description,
+            :vendor, :category, :date, :type, false)`,
+        [
+          param.string('hoaId', hoaId),
+          param.string('accountId', txn.accountId),
+          param.string('plaidTxnId', txn.plaidTxnId),
+          param.double('amount', txn.amount),
+          param.string('description', txn.description),
+          txn.vendor ? param.string('vendor', txn.vendor) : param.string('vendor', ''),
+          param.string('category', txn.category),
+          param.string('date', txn.date),
+          param.string('type', txn.type),
+        ],
+      )
+      added++
+    }
+  }
+
+  return { added, modified }
+}
+
+export async function removePlaidTransactions(plaidTxnIds: string[]): Promise<number> {
+  if (plaidTxnIds.length === 0) return 0
+  // Delete each by plaid_txn_id
+  let removed = 0
+  for (const id of plaidTxnIds) {
+    const existing = await queryOne<{ id: string }>(
+      `SELECT id FROM transactions WHERE plaid_txn_id = :id`,
+      [param.string('id', id)],
+    )
+    if (existing) {
+      await execute(`DELETE FROM transactions WHERE id = :id`, [param.string('id', existing.id)])
+      removed++
+    }
+  }
+  return removed
+}
+
+// Map our internal account UUID by Plaid account_id (needed during sync)
+export async function getAccountByPlaidId(plaidAccountId: string): Promise<{ id: string; hoaId: string } | null> {
+  return queryOne<{ id: string; hoaId: string }>(
+    `SELECT id, hoa_id AS "hoaId" FROM accounts WHERE plaid_account_id = :plaidAccountId`,
+    [param.string('plaidAccountId', plaidAccountId)],
   )
 }

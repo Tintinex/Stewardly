@@ -695,6 +695,8 @@ export const mockAccounts: FinanceAccount[] = [
     balance: 94720.00,
     currency: 'USD',
     lastSyncedAt: '2024-07-23T06:00:00Z',
+    plaidItemId: null,
+    plaidAccountId: null,
   },
   {
     id: 'acct-002',
@@ -704,6 +706,8 @@ export const mockAccounts: FinanceAccount[] = [
     balance: 182400.00,
     currency: 'USD',
     lastSyncedAt: '2024-07-23T06:00:00Z',
+    plaidItemId: null,
+    plaidAccountId: null,
   },
 ]
 

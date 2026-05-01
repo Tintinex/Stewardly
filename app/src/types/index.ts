@@ -209,6 +209,17 @@ export interface FinanceAccount {
   balance: number
   currency: string
   lastSyncedAt: string
+  plaidItemId: string | null
+  plaidAccountId: string | null
+}
+
+export interface PlaidItem {
+  id: string
+  institutionName: string
+  status: 'active' | 'error' | 'item_login_required'
+  errorCode: string | null
+  lastSyncedAt: string | null
+  accountCount: number
 }
 
 export interface AnalyticsData {

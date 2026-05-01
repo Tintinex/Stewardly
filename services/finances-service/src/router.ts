@@ -17,6 +17,10 @@ import { handleListAssessments } from './handlers/list-assessments'
 import { handleCreateAssessment, handleBulkAssessments } from './handlers/create-assessment'
 import { handleUpdateAssessment, handleDeleteAssessment } from './handlers/update-assessment'
 import { handleGetAnalytics } from './handlers/get-analytics'
+import { handleCreateLinkToken } from './handlers/plaid-link-token'
+import { handleExchangeToken } from './handlers/plaid-exchange'
+import { handlePlaidSync } from './handlers/plaid-sync'
+import { handleListPlaidItems, handleDeletePlaidItem } from './handlers/plaid-items'
 
 export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   const { hoaId, role } = event.requestContext.authorizer.lambda
@@ -64,6 +68,17 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   const assessmentMatch = path.match(/\/finances\/assessments\/([^/]+)$/)
   if (assessmentMatch && method === 'PATCH')  return handleUpdateAssessment(event.body ?? null, hoaId, assessmentMatch[1], role)
   if (assessmentMatch && method === 'DELETE') return handleDeleteAssessment(hoaId, assessmentMatch[1], role)
+
+  // ── Plaid ─────────────────────────────────────────────────────────────────────
+  if (method === 'POST' && path.endsWith('/finances/plaid/link-token')) return handleCreateLinkToken(event.body ?? null, hoaId, role)
+  if (method === 'POST' && path.endsWith('/finances/plaid/exchange'))   return handleExchangeToken(event.body ?? null, hoaId, role)
+  if (method === 'GET'  && path.endsWith('/finances/plaid/items'))      return handleListPlaidItems(hoaId)
+
+  const plaidSyncMatch = path.match(/\/finances\/plaid\/sync\/([^/]+)$/)
+  if (plaidSyncMatch && method === 'POST') return handlePlaidSync(hoaId, plaidSyncMatch[1], role)
+
+  const plaidItemMatch = path.match(/\/finances\/plaid\/items\/([^/]+)$/)
+  if (plaidItemMatch && method === 'DELETE') return handleDeletePlaidItem(hoaId, plaidItemMatch[1], role)
 
   return r.badRequest(`Unsupported route: ${method} ${path}`)
 }

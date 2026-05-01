@@ -15,7 +15,8 @@
     "@aws-sdk/client-secrets-manager": "^3.614.0",
     "@aws-sdk/s3-request-presigner": "^3.1038.0",
     "pdf-parse": "^2.4.5",
-    "pg": "^8.12.0"
+    "pg": "^8.12.0",
+    "plaid": "^42.2.0"
   },
   "devDependencies": {
     "@aws-sdk/client-cloudwatch": "^3.1034.0",
