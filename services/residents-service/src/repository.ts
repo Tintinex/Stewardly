@@ -2,6 +2,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { query, queryOne, execute, param } from '../../shared/db/client'
 import type { Resident, CreateResidentInput, UpdateResidentInput } from './types'
+import { generateDownloadUrl } from './s3'
 
 const s3 = new S3Client({ region: process.env.AWS_REGION ?? 'us-east-1' })
 const S3_BUCKET = process.env.S3_BUCKET ?? ''
@@ -497,25 +498,40 @@ export interface DocumentRecord {
   title: string
   description: string | null
   category: string
-  fileUrl: string
+  autoCategory: string | null
+  s3Key: string | null
+  fileUrl: string | null
   fileName: string
+  fileType: string | null
   fileSizeBytes: number | null
-  uploadedByName: string
+  source: string
+  uploadedBy: string
+  uploadedByName: string | null
   createdAt: string
+  processingStatus: string
+  aiSummary: string | null
+  aiKeyPoints: string[] | null
 }
+
+const DOC_SELECT = `
+  SELECT d.id, d.hoa_id AS "hoaId", d.title, d.description, d.category,
+         d.auto_category AS "autoCategory", d.s3_key AS "s3Key",
+         d.file_url AS "fileUrl", d.file_name AS "fileName",
+         d.file_type AS "fileType", d.file_size_bytes AS "fileSizeBytes",
+         COALESCE(d.source, 'upload') AS source,
+         d.uploaded_by AS "uploadedBy",
+         CONCAT(o.first_name, ' ', o.last_name) AS "uploadedByName",
+         d.created_at AS "createdAt",
+         COALESCE(d.processing_status, 'done') AS "processingStatus",
+         d.ai_summary AS "aiSummary",
+         d.ai_key_points AS "aiKeyPoints"
+  FROM documents d
+  LEFT JOIN owners o ON o.id = d.uploaded_by`
 
 export async function listDocuments(hoaId: string, category?: string): Promise<DocumentRecord[]> {
   const params = [param.string('hoaId', hoaId)]
-  let sql = `
-    SELECT d.id, d.hoa_id AS "hoaId", d.title, d.description, d.category,
-           d.file_url AS "fileUrl", d.file_name AS "fileName",
-           d.file_size_bytes AS "fileSizeBytes",
-           CONCAT(o.first_name, ' ', o.last_name) AS "uploadedByName",
-           d.created_at AS "createdAt"
-    FROM documents d
-    LEFT JOIN owners o ON o.id = d.uploaded_by
-    WHERE d.hoa_id = :hoaId
-  `
+  let sql = `${DOC_SELECT}
+    WHERE d.hoa_id = :hoaId AND d.deleted_at IS NULL`
   if (category) {
     sql += ' AND d.category = :category'
     params.push(param.string('category', category))
@@ -524,34 +540,113 @@ export async function listDocuments(hoaId: string, category?: string): Promise<D
   return query<DocumentRecord>(sql, params)
 }
 
-export async function createDocument(input: {
+export async function getDocumentById(documentId: string, hoaId: string): Promise<DocumentRecord | null> {
+  return queryOne<DocumentRecord>(
+    `${DOC_SELECT}
+     WHERE d.id = :documentId AND d.hoa_id = :hoaId AND d.deleted_at IS NULL`,
+    [param.string('documentId', documentId), param.string('hoaId', hoaId)],
+  )
+}
+
+export async function createDocumentRecord(input: {
+  id: string
   hoaId: string
   title: string
   description: string | null
   category: string
-  fileUrl: string
+  autoCategory: string
+  s3Key: string | null
+  fileUrl: string | null
   fileName: string
+  fileType: string | null
   fileSizeBytes: number | null
   uploadedBy: string
+  source: 'upload' | 'google_drive' | 'email'
+  originalUrl: string | null
+  emailSender?: string | null
 }): Promise<DocumentRecord | null> {
   const row = await queryOne<{ id: string }>(
-    `INSERT INTO documents (id, hoa_id, title, description, category, file_url, file_name, file_size_bytes, uploaded_by)
-     VALUES (gen_random_uuid(), :hoaId, :title, :description, :category, :fileUrl, :fileName, :fileSizeBytes, :uploadedBy)
+    `INSERT INTO documents
+       (id, hoa_id, title, description, category, auto_category,
+        s3_key, file_url, file_name, file_type, file_size_bytes,
+        uploaded_by, source, original_url, email_sender)
+     VALUES
+       (:id, :hoaId, :title, :description, :category, :autoCategory,
+        :s3Key, :fileUrl, :fileName, :fileType, :fileSizeBytes,
+        :uploadedBy, :source, :originalUrl, :emailSender)
      RETURNING id`,
     [
+      param.string('id', input.id),
       param.string('hoaId', input.hoaId),
       param.string('title', input.title),
       param.stringOrNull('description', input.description),
       param.string('category', input.category),
-      param.string('fileUrl', input.fileUrl),
+      param.string('autoCategory', input.autoCategory),
+      param.stringOrNull('s3Key', input.s3Key),
+      param.stringOrNull('fileUrl', input.fileUrl),
       param.string('fileName', input.fileName),
+      param.stringOrNull('fileType', input.fileType),
       param.stringOrNull('fileSizeBytes', input.fileSizeBytes != null ? String(input.fileSizeBytes) : null),
       param.string('uploadedBy', input.uploadedBy),
+      param.string('source', input.source),
+      param.stringOrNull('originalUrl', input.originalUrl),
+      param.stringOrNull('emailSender', input.emailSender ?? null),
     ],
   )
   if (!row?.id) return null
-  const docs = await listDocuments(input.hoaId)
-  return docs.find(d => d.id === row.id) ?? null
+  return getDocumentById(input.id, input.hoaId)
+}
+
+export async function softDeleteDocument(documentId: string, hoaId: string): Promise<void> {
+  await execute(
+    `UPDATE documents SET deleted_at = NOW() WHERE id = :documentId AND hoa_id = :hoaId`,
+    [param.string('documentId', documentId), param.string('hoaId', hoaId)],
+  )
+}
+
+/** Documents with extracted text for Q&A context.  Prioritises bylaws/rules/legal. */
+export async function getDocumentsForQA(
+  hoaId: string,
+  categoryHint?: string,
+): Promise<Array<{ id: string; title: string; category: string; text: string }>> {
+  // Smart ordering: preferred categories first, then recency, capped at 15 docs
+  const PRIORITY_CATS = ['bylaws', 'rules', 'legal', 'contracts', 'sow', 'notices', 'insurance', 'meeting_minutes']
+  const priorityList = PRIORITY_CATS.map(c => `'${c}'`).join(', ')
+
+  const rows = await query<{ id: string; title: string; category: string; extractedText: string | null; aiSummary: string | null }>(
+    `SELECT d.id, d.title, d.category,
+            d.extracted_text AS "extractedText",
+            d.ai_summary     AS "aiSummary"
+     FROM documents d
+     WHERE d.hoa_id = :hoaId
+       AND d.deleted_at IS NULL
+       AND (d.extracted_text IS NOT NULL OR d.ai_summary IS NOT NULL)
+       ${categoryHint ? 'AND d.category = :category' : ''}
+     ORDER BY
+       CASE WHEN d.category IN (${priorityList}) THEN 0 ELSE 1 END,
+       d.created_at DESC
+     LIMIT 15`,
+    categoryHint
+      ? [param.string('hoaId', hoaId), param.string('category', categoryHint)]
+      : [param.string('hoaId', hoaId)],
+  )
+
+  return rows.map(r => ({
+    id: r.id,
+    title: r.title,
+    category: r.category,
+    // Prefer full extracted text; fall back to AI summary for Q&A context
+    text: r.extractedText ?? r.aiSummary ?? '',
+  })).filter(r => r.text.trim().length > 50)
+}
+
+/** Fetch HOA name for the Q&A system prompt. */
+export async function getHoaName(hoaId: string): Promise<string> {
+  const row = await queryOne<{ name: string }>(
+    'SELECT name FROM hoas WHERE id = :hoaId',
+    [param.string('hoaId', hoaId)],
+  )
+  return row?.name ?? 'your HOA'
 }
 
 // ── HOA Admin — Members ──────────────────────────────────────────────────────

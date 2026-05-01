@@ -132,35 +132,42 @@ export class AuthStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     })
 
+    // Use pre-built dist/ if available — avoids re-running esbuild on every CDK synth.
+    // Build with: node C:\stewardly-deploy\prebuild-all.js
+    const authorizerDistDir = path.resolve('../services/shared/tenant-authorizer/dist')
+    const authorizerDistExists = fs.existsSync(path.join(authorizerDistDir, 'index.js'))
+
     this.authorizerFunction = new lambda.Function(this, 'AuthorizerFunction', {
       functionName: `stewardly-authorizer-${stage}`,
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'index.handler',
-      code: lambda.Code.fromAsset('../services', {
-        bundling: {
-          local: {
-            tryBundle(outputDir: string): boolean {
-              try {
-                buildSync({
-                  entryPoints: [path.resolve('../services/shared/tenant-authorizer/index.ts')],
-                  bundle: true,
-                  platform: 'node',
-                  target: 'node22',
-                  external: ['@aws-sdk/*'],
-                  outfile: path.join(outputDir, 'index.js'),
-                  nodePaths: [LOCAL_NM],
-                })
-                return true
-              } catch { return false }
+      code: authorizerDistExists
+        ? lambda.Code.fromAsset(authorizerDistDir)
+        : lambda.Code.fromAsset('../services', {
+            bundling: {
+              local: {
+                tryBundle(outputDir: string): boolean {
+                  try {
+                    buildSync({
+                      entryPoints: [path.resolve('../services/shared/tenant-authorizer/index.ts')],
+                      bundle: true,
+                      platform: 'node',
+                      target: 'node22',
+                      external: ['@aws-sdk/*'],
+                      outfile: path.join(outputDir, 'index.js'),
+                      nodePaths: [LOCAL_NM],
+                    })
+                    return true
+                  } catch { return false }
+                },
+              },
+              image: lambda.Runtime.NODEJS_22_X.bundlingImage,
+              command: [
+                'bash', '-c',
+                'npm install && npx esbuild shared/tenant-authorizer/index.ts --bundle --platform=node --target=node22 --external:@aws-sdk/* --outfile=/asset-output/index.js',
+              ],
             },
-          },
-          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
-          command: [
-            'bash', '-c',
-            'npm install && npx esbuild shared/tenant-authorizer/index.ts --bundle --platform=node --target=node22 --external:@aws-sdk/* --outfile=/asset-output/index.js',
-          ],
-        },
-      }),
+          }),
       role: authorizerRole,
       timeout: cdk.Duration.seconds(5),
       logGroup: authorizerLogGroup,

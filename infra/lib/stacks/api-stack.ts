@@ -6,7 +6,7 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2'
 import * as cognito from 'aws-cdk-lib/aws-cognito'
 import * as s3 from 'aws-cdk-lib/aws-s3'
 import * as rds from 'aws-cdk-lib/aws-rds'
-import type * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
 import * as kms from 'aws-cdk-lib/aws-kms'
 import * as lambda from 'aws-cdk-lib/aws-lambda'
 import * as logs from 'aws-cdk-lib/aws-logs'
@@ -130,6 +130,43 @@ export class ApiStack extends cdk.Stack {
       ],
     })
 
+    // ── Anthropic API key secret ──────────────────────────────────────────────
+    // Create once; user updates the value via AWS Console or CLI:
+    //   aws secretsmanager update-secret \
+    //     --secret-id stewardly/dev/anthropic-api-key \
+    //     --secret-string "sk-ant-..."
+    const anthropicSecret = new secretsmanager.Secret(this, 'AnthropicApiKey', {
+      secretName: `stewardly/${stage}/anthropic-api-key`,
+      description: 'Anthropic Claude API key for AI document processing',
+      secretStringValue: cdk.SecretValue.unsafePlainText('REPLACE_ME'),
+    })
+
+    // ── Document Processor Lambda ─────────────────────────────────────────────
+    // Invoked async (InvocationType: Event) from residents-service after upload.
+    const documentProcessorLambda = new SecureLambda(this, 'DocumentProcessorLambda', {
+      ...commonLambdaProps,
+      functionName: 'document-processor',
+      handler: 'index.handler',
+      additionalEnv: {
+        ANTHROPIC_SECRET_ARN: anthropicSecret.secretArn,
+      },
+      additionalPolicies: [
+        new iam.PolicyStatement({
+          actions: ['secretsmanager:GetSecretValue'],
+          resources: [anthropicSecret.secretArn],
+        }),
+      ],
+    })
+
+    // Give residents-service permission to invoke the processor async
+    documentProcessorLambda.function.grantInvoke(residentsLambda.function)
+
+    // Inject processor function name into residents-service
+    residentsLambda.function.addEnvironment(
+      'DOCUMENT_PROCESSOR_FUNCTION_NAME',
+      documentProcessorLambda.function.functionName,
+    )
+
     // Signup Lambda — public (no authorizer); handles invite validation + HOA self-registration
     const signupLambda = new SecureLambda(this, 'SignupLambda', {
       ...commonLambdaProps,
@@ -243,7 +280,12 @@ export class ApiStack extends cdk.Stack {
       { id: 'EnsureOwner',       path: '/api/residents/me',              methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST, apigatewayv2.HttpMethod.PATCH], fn: residentsLambda.function },
       { id: 'MyUnit',            path: '/api/my-unit',                   methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },
       { id: 'Maintenance',       path: '/api/maintenance-requests',      methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: residentsLambda.function },
-      { id: 'Documents',         path: '/api/documents',                 methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: residentsLambda.function },
+      { id: 'Documents',             path: '/api/documents',                          methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],  fn: residentsLambda.function },
+      { id: 'DocumentsPresignedUrl', path: '/api/documents/presigned-url',            methods: [apigatewayv2.HttpMethod.POST],                                fn: residentsLambda.function },
+      { id: 'DocumentsFromDrive',    path: '/api/documents/from-drive',               methods: [apigatewayv2.HttpMethod.POST],                                fn: residentsLambda.function },
+      { id: 'DocumentDownload',      path: '/api/documents/{documentId}/download',    methods: [apigatewayv2.HttpMethod.GET],                                 fn: residentsLambda.function },
+      { id: 'DocumentDelete',        path: '/api/documents/{documentId}',             methods: [apigatewayv2.HttpMethod.DELETE],                              fn: residentsLambda.function },
+      { id: 'DocumentsAsk',          path: '/api/documents/ask',                      methods: [apigatewayv2.HttpMethod.POST],                                fn: residentsLambda.function },
       // HOA-admin routes (board_admin / board_member, role-enforced in Lambda)
       { id: 'HoaStats',          path: '/api/hoa/stats',                 methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },
       { id: 'HoaMembers',        path: '/api/hoa/members',               methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },
@@ -253,8 +295,10 @@ export class ApiStack extends cdk.Stack {
       // Admin routes — superadmin role enforced in the Lambda itself
       { id: 'AdminDashboard',         path: '/api/admin/dashboard',                          methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
       { id: 'AdminHoas',              path: '/api/admin/hoas',                               methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
+      { id: 'AdminHoaHealth',          path: '/api/admin/hoas/{hoaId}/health',                methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
       { id: 'AdminHoaInviteCode',     path: '/api/admin/hoas/{hoaId}/invite-code',           methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],         fn: adminLambda.function },
-      { id: 'AdminHoaAdminUser',     path: '/api/admin/hoas/{hoaId}/admin-user',            methods: [apigatewayv2.HttpMethod.POST],                                      fn: adminLambda.function },
+      { id: 'AdminHoaAdminUser',      path: '/api/admin/hoas/{hoaId}/admin-user',            methods: [apigatewayv2.HttpMethod.POST],                                      fn: adminLambda.function },
+      { id: 'AdminHoaUsers',          path: '/api/admin/hoas/{hoaId}/users/{userId}',        methods: [apigatewayv2.HttpMethod.DELETE],                                    fn: adminLambda.function },
       { id: 'AdminHoaById',           path: '/api/admin/hoas/{hoaId}',                       methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.PATCH],         fn: adminLambda.function },
       { id: 'AdminUsers',             path: '/api/admin/users',                              methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
       { id: 'AdminUserById',          path: '/api/admin/users/{userId}',                     methods: [apigatewayv2.HttpMethod.PATCH],                                    fn: adminLambda.function },

@@ -11,6 +11,11 @@ import { handleListMaintenance } from './handlers/list-maintenance'
 import { handleCreateMaintenance } from './handlers/create-maintenance'
 import { handleListDocuments } from './handlers/list-documents'
 import { handleCreateDocument } from './handlers/create-document'
+import { handleDocumentPresignedUrl } from './handlers/document-presigned-url'
+import { handleDocumentFromDrive } from './handlers/document-from-drive'
+import { handleDocumentDownload } from './handlers/document-download'
+import { handleDeleteDocument } from './handlers/delete-document'
+import { handleAskDocuments } from './handlers/ask-documents'
 import { handleHoaStats } from './handlers/hoa-stats'
 import { handleListMembers } from './handlers/list-members'
 import { handleUpdateMemberStatus } from './handlers/update-member-status'
@@ -55,6 +60,38 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   if (method === 'POST' && path.endsWith('/maintenance-requests')) {
     if (!hoaId) return r.unauthorized()
     return handleCreateMaintenance(event.body ?? null, hoaId, userId)
+  }
+
+  // POST /api/documents/ask — Q&A for all authenticated members
+  if (method === 'POST' && path.endsWith('/documents/ask')) {
+    if (!hoaId) return r.unauthorized()
+    return handleAskDocuments(event.body ?? null, hoaId)
+  }
+
+  // POST /api/documents/presigned-url — must come before /documents catch-all
+  if (method === 'POST' && path.endsWith('/documents/presigned-url')) {
+    if (!hoaId) return r.unauthorized()
+    return handleDocumentPresignedUrl(event.body ?? null, hoaId, role)
+  }
+
+  // POST /api/documents/from-drive
+  if (method === 'POST' && path.endsWith('/documents/from-drive')) {
+    if (!hoaId) return r.unauthorized()
+    return handleDocumentFromDrive(event.body ?? null, hoaId, userId, role)
+  }
+
+  // GET /api/documents/:id/download
+  const docDownloadMatch = path.match(/\/documents\/([^/]+)\/download$/)
+  if (docDownloadMatch && method === 'GET') {
+    if (!hoaId) return r.unauthorized()
+    return handleDocumentDownload(docDownloadMatch[1], hoaId)
+  }
+
+  // DELETE /api/documents/:id
+  const docDeleteMatch = path.match(/\/documents\/([^/]+)$/)
+  if (docDeleteMatch && method === 'DELETE') {
+    if (!hoaId) return r.unauthorized()
+    return handleDeleteDocument(docDeleteMatch[1], hoaId, userId, role)
   }
 
   // GET /api/documents
