@@ -1,6 +1,6 @@
 import type {
   HOA, Unit, User, Task, Meeting, ActionItem, Board, Thread, Post,
-  BudgetLineItem, MonthlyExpense, ExpenseCategory, PlaidAccount,
+  BudgetLineItem, MonthlyExpense, ExpenseCategory, FinanceAccount,
   Transaction, DashboardSummary, Financials, AgendaItem,
 } from '@/types'
 
@@ -686,10 +686,9 @@ export const mockExpenseBreakdown: ExpenseCategory[] = [
   { category: 'Legal & Audit',  amount: 4200,  color: '#C6D0E4' },
 ]
 
-export const mockAccounts: PlaidAccount[] = [
+export const mockAccounts: FinanceAccount[] = [
   {
     id: 'acct-001',
-    hoaId: mockHoa.id,
     institutionName: 'First Citizens Bank',
     accountName: 'HOA Operating Account',
     accountType: 'checking',
@@ -699,7 +698,6 @@ export const mockAccounts: PlaidAccount[] = [
   },
   {
     id: 'acct-002',
-    hoaId: mockHoa.id,
     institutionName: 'First Citizens Bank',
     accountName: 'HOA Reserve Fund',
     accountType: 'savings',
@@ -710,13 +708,13 @@ export const mockAccounts: PlaidAccount[] = [
 ]
 
 export const mockTransactions: Transaction[] = [
-  { id: 'txn-001', hoaId: mockHoa.id, accountId: 'acct-001', amount: -3200.00, description: 'Green Thumb Landscaping — July', category: 'Landscaping', date: '2024-07-15', type: 'debit' },
-  { id: 'txn-002', hoaId: mockHoa.id, accountId: 'acct-001', amount: -1840.00, description: 'Duke Energy — Common Areas Electric', category: 'Utilities', date: '2024-07-12', type: 'debit' },
-  { id: 'txn-003', hoaId: mockHoa.id, accountId: 'acct-001', amount: 48200.00, description: 'Monthly Dues Collection — July', category: 'Income', date: '2024-07-01', type: 'credit' },
-  { id: 'txn-004', hoaId: mockHoa.id, accountId: 'acct-001', amount: -980.00, description: 'Aqua Pool Services — Monthly', category: 'Pool & Amenities', date: '2024-07-08', type: 'debit' },
-  { id: 'txn-005', hoaId: mockHoa.id, accountId: 'acct-001', amount: -450.00, description: 'City of Raleigh — Trash Collection', category: 'Utilities', date: '2024-07-05', type: 'debit' },
-  { id: 'txn-006', hoaId: mockHoa.id, accountId: 'acct-001', amount: -2900.00, description: 'ABC Asphalt — Pothole Estimate Deposit', category: 'Maintenance', date: '2024-07-22', type: 'debit' },
-  { id: 'txn-007', hoaId: mockHoa.id, accountId: 'acct-002', amount: 2500.00, description: 'Reserve Fund Contribution — July', category: 'Reserve', date: '2024-07-01', type: 'credit' },
+  { id: 'txn-001', accountId: 'acct-001', amount: -3200.00, description: 'Green Thumb Landscaping — July', vendor: 'Green Thumb Landscaping', category: 'Landscaping', date: '2024-07-15', type: 'debit', notes: null, isManual: true, createdAt: '2024-07-15T00:00:00Z' },
+  { id: 'txn-002', accountId: 'acct-001', amount: -1840.00, description: 'Duke Energy — Common Areas Electric', vendor: 'Duke Energy', category: 'Utilities', date: '2024-07-12', type: 'debit', notes: null, isManual: true, createdAt: '2024-07-12T00:00:00Z' },
+  { id: 'txn-003', accountId: 'acct-001', amount: 48200.00, description: 'Monthly Dues Collection — July', vendor: null, category: 'Income', date: '2024-07-01', type: 'credit', notes: null, isManual: true, createdAt: '2024-07-01T00:00:00Z' },
+  { id: 'txn-004', accountId: 'acct-001', amount: -980.00, description: 'Aqua Pool Services — Monthly', vendor: 'Aqua Pool Services', category: 'Pool & Amenities', date: '2024-07-08', type: 'debit', notes: null, isManual: true, createdAt: '2024-07-08T00:00:00Z' },
+  { id: 'txn-005', accountId: 'acct-001', amount: -450.00, description: 'City of Raleigh — Trash Collection', vendor: 'City of Raleigh', category: 'Utilities', date: '2024-07-05', type: 'debit', notes: null, isManual: true, createdAt: '2024-07-05T00:00:00Z' },
+  { id: 'txn-006', accountId: 'acct-001', amount: -2900.00, description: 'ABC Asphalt — Pothole Estimate Deposit', vendor: 'ABC Asphalt', category: 'Maintenance', date: '2024-07-22', type: 'debit', notes: null, isManual: true, createdAt: '2024-07-22T00:00:00Z' },
+  { id: 'txn-007', accountId: 'acct-002', amount: 2500.00, description: 'Reserve Fund Contribution — July', vendor: null, category: 'Reserve', date: '2024-07-01', type: 'credit', notes: null, isManual: true, createdAt: '2024-07-01T00:00:00Z' },
 ]
 
 // ─── Dashboard Summary ────────────────────────────────────────────────────────
@@ -764,9 +762,17 @@ export const mockDashboardSummary: DashboardSummary = {
 export const mockFinancials: Financials = {
   totalBudget: 143200,
   ytdExpenses: 87340,
+  ytdIncome: 289200,
   reserveFundBalance: 182400,
   lineItems: mockBudgetLineItems,
-  expenseTrend: mockExpenseTrend,
+  expenseTrend: [
+    { month: 'Feb 24', amount: 11800, income: 48200 },
+    { month: 'Mar 24', amount: 14200, income: 48200 },
+    { month: 'Apr 24', amount: 13100, income: 48200 },
+    { month: 'May 24', amount: 15800, income: 48200 },
+    { month: 'Jun 24', amount: 16340, income: 48200 },
+    { month: 'Jul 24', amount: 16300, income: 48200 },
+  ],
   expenseBreakdown: mockExpenseBreakdown,
   accounts: mockAccounts,
   recentTransactions: mockTransactions,

@@ -167,39 +167,58 @@ export interface BudgetLineItem {
   variance: number
 }
 
+export interface BudgetWithLineItems extends Budget {
+  lineItems: BudgetLineItem[]
+}
+
 export interface Assessment {
   id: string
   hoaId: string
   unitId: string
   unitNumber: string
-  ownerName: string
+  ownerName: string | null
   amount: number
+  description: string
   dueDate: string
   paidDate: string | null
   status: 'pending' | 'paid' | 'overdue'
+  notes: string | null
   createdAt: string
 }
 
 export interface Transaction {
   id: string
-  hoaId: string
   accountId: string
+  accountName?: string
   amount: number
   description: string
+  vendor: string | null
   category: string
   date: string
   type: 'debit' | 'credit'
+  notes: string | null
+  isManual: boolean
+  createdAt: string
 }
 
-export interface PlaidAccount {
+export interface FinanceAccount {
   id: string
-  hoaId: string
   institutionName: string
   accountName: string
   accountType: string
   balance: number
   currency: string
   lastSyncedAt: string
+}
+
+export interface AnalyticsData {
+  monthlyTrend: Array<{ month: string; expenses: number; income: number; budget: number }>
+  categoryBreakdown: Array<{ category: string; amount: number; budgeted: number; percent: number; color: string }>
+  cashFlow: { totalIncome: number; totalExpenses: number; netCashFlow: number; avgMonthlyExpenses: number }
+  assessmentSummary: { totalExpected: number; totalCollected: number; outstanding: number; overdueCount: number; collectionRate: number }
+  insights: Array<{ type: 'warning' | 'success' | 'info'; title: string; message: string }>
+  topVendors: Array<{ vendor: string; amount: number; count: number }>
+  budgetUtilization: number
 }
 
 // ─── Aggregated / API Response Types ─────────────────────────────────────────
@@ -243,11 +262,12 @@ export interface ExpenseCategory {
 export interface Financials {
   totalBudget: number
   ytdExpenses: number
+  ytdIncome: number
   reserveFundBalance: number
   lineItems: BudgetLineItem[]
-  expenseTrend: MonthlyExpense[]
+  expenseTrend: Array<{ month: string; amount: number; income: number }>
   expenseBreakdown: ExpenseCategory[]
-  accounts: PlaidAccount[]
+  accounts: FinanceAccount[]
   recentTransactions: Transaction[]
 }
 
