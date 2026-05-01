@@ -47,7 +47,8 @@ Thumbs.db
 
 # AWS CDK
 cdk.out/
-*.context.json
+# cdk.context.json is intentionally committed — it caches VPC/AZ lookups
+# so CDK synth works in CI without AWS credentials
 
 # Testing
 coverage/
