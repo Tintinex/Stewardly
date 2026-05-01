@@ -1,5 +1,7 @@
-.claude/serve.log
-.claude/test.log
+# Claude Code internal files (worktrees, locks, task outputs)
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
 
 # Dependencies
 node_modules/
