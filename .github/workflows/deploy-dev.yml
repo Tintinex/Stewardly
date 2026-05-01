@@ -43,15 +43,9 @@ jobs:
           NEXT_PUBLIC_AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
 
       - name: Deploy to Vercel
-        working-directory: app
         run: |
           npm install -g vercel
-          vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} \
-            --build-env NEXT_PUBLIC_USE_MOCK=false \
-            --build-env NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
-            --build-env NEXT_PUBLIC_COGNITO_USER_POOL_ID=${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }} \
-            --build-env NEXT_PUBLIC_COGNITO_CLIENT_ID=${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }} \
-            --build-env NEXT_PUBLIC_AWS_REGION=${{ secrets.AWS_REGION || 'us-east-1' }}
+          vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
