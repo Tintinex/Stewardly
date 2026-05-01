@@ -4,7 +4,9 @@ import { getPlaidClient } from '../plaid-client'
 import { CountryCode, Products } from 'plaid'
 
 /** POST /api/finances/plaid/link-token
- *  Body (optional): { itemId: string }  — if provided, creates an update-mode token for re-auth
+ *  Body (optional): { itemId?: string; redirectUri?: string }
+ *  - itemId: creates an update-mode token for re-auth
+ *  - redirectUri: required for OAuth institutions (Chase, BoA, etc.)
  */
 export async function handleCreateLinkToken(
   body: string | null,
@@ -16,14 +18,18 @@ export async function handleCreateLinkToken(
   }
 
   let accessToken: string | undefined
+  let redirectUri: string | undefined
 
   if (body) {
     try {
-      const parsed = JSON.parse(body) as { itemId?: string }
+      const parsed = JSON.parse(body) as { itemId?: string; redirectUri?: string }
       if (parsed.itemId) {
         const item = await repo.getPlaidItemWithToken(hoaId, parsed.itemId)
         if (!item) return r.notFound('Plaid item not found')
         accessToken = item.accessToken
+      }
+      if (parsed.redirectUri) {
+        redirectUri = parsed.redirectUri
       }
     } catch {
       return r.badRequest('Invalid JSON')
@@ -39,6 +45,9 @@ export async function handleCreateLinkToken(
     country_codes: [CountryCode.Us],
     language: 'en',
     ...(accessToken ? { access_token: accessToken } : {}),
+    // redirect_uri is required for OAuth institutions (Chase, BoA, Wells Fargo, etc.)
+    // Must be registered in the Plaid dashboard under Team Settings → API → Allowed redirect URIs
+    ...(redirectUri ? { redirect_uri: redirectUri } : {}),
   }
 
   const response = await plaid.linkTokenCreate(request)

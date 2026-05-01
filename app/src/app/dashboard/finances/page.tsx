@@ -1608,7 +1608,11 @@ function BulkAssessmentModal({ isOpen, onClose, onSave }: {
 }
 
 // ─── Plaid Link Button ────────────────────────────────────────────────────────
-// Self-contained: fetches link token, opens Plaid Link, exchanges public token.
+// Handles both new connections and OAuth redirect re-entry.
+// OAuth flow: user selects Chase/BoA → Plaid redirects to this page with
+// ?oauth_state_id=xxx → we detect it, re-init Link with receivedRedirectUri → done.
+
+const OAUTH_STORAGE_KEY = 'plaid_link_token'
 
 function PlaidLinkButton({
   itemId,
@@ -1616,7 +1620,7 @@ function PlaidLinkButton({
   variant = 'primary',
   onSuccess,
 }: {
-  itemId?: string            // Pass to re-auth an existing item
+  itemId?: string
   label?: string
   variant?: 'primary' | 'outline'
   onSuccess?: () => void
@@ -1626,9 +1630,26 @@ function PlaidLinkButton({
   const [exchanging, setExchanging] = useState(false)
   const [err, setErr] = useState('')
 
+  // Detect OAuth return: ?oauth_state_id=xxx in the URL
+  const isOAuthReturn = typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).has('oauth_state_id')
+
+  // On OAuth return, restore the link token from sessionStorage
+  useEffect(() => {
+    if (isOAuthReturn) {
+      const stored = sessionStorage.getItem(OAUTH_STORAGE_KEY)
+      if (stored) setLinkToken(stored)
+    }
+  }, [isOAuthReturn])
+
   const { open, ready } = usePlaidLink({
     token: linkToken ?? '',
+    // On OAuth return, pass the full current URL back to Plaid to complete the flow
+    receivedRedirectUri: isOAuthReturn ? window.location.href : undefined,
     onSuccess: async (publicToken) => {
+      sessionStorage.removeItem(OAUTH_STORAGE_KEY)
+      // Strip oauth params from URL without navigating
+      window.history.replaceState({}, '', window.location.pathname)
       setExchanging(true)
       setLinkToken(null)
       try {
@@ -1643,10 +1664,12 @@ function PlaidLinkButton({
         setExchanging(false)
       }
     },
-    onExit: () => setLinkToken(null),
+    onExit: () => {
+      if (!isOAuthReturn) setLinkToken(null)
+    },
   })
 
-  // Auto-open once token is ready
+  // Auto-open: new token ready OR OAuth return token restored
   useEffect(() => {
     if (linkToken && ready) open()
   }, [linkToken, ready, open])
@@ -1655,11 +1678,16 @@ function PlaidLinkButton({
     setErr('')
     setFetchingToken(true)
     try {
-      const body = itemId ? JSON.stringify({ itemId }) : undefined
+      // redirectUri tells Plaid where to send the user back after OAuth login
+      const redirectUri = `${window.location.origin}${window.location.pathname}`
+      const payload: Record<string, string> = { redirectUri }
+      if (itemId) payload.itemId = itemId
       const data = await apiFetch<{ linkToken: string }>('/api/finances/plaid/link-token', {
         method: 'POST',
-        body,
+        body: JSON.stringify(payload),
       })
+      // Persist token so the OAuth return can restore it
+      sessionStorage.setItem(OAUTH_STORAGE_KEY, data.linkToken)
       setLinkToken(data.linkToken)
     } catch (e) {
       setErr((e as Error).message)
