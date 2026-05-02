@@ -1,7 +1,7 @@
 import * as r from '../../../shared/response'
 import { generateDownloadUrl } from '../s3'
 import { detectCategory, VALID_CATEGORIES } from '../categorize'
-import { createDocumentRecord } from '../repository'
+import { createDocumentRecord, getOwnerIdByCognitoSub } from '../repository'
 import { invokeDocumentProcessor } from '../processor-invoke'
 
 interface CreateDocumentBody {
@@ -54,6 +54,10 @@ export async function handleCreateDocument(
     ? input.category
     : autoCategory
 
+  // Resolve the uploader's internal owners.id UUID (uploaded_by FK references owners.id,
+  // not the Cognito sub that userId contains). Falls back to null if owner record missing.
+  const ownerId = await getOwnerIdByCognitoSub(hoaId, userId)
+
   // Generate a download URL to return in the response
   const downloadUrl = await generateDownloadUrl(input.s3Key, input.fileName)
 
@@ -69,7 +73,7 @@ export async function handleCreateDocument(
     fileName: input.fileName.trim(),
     fileSizeBytes: input.fileSizeBytes ?? null,
     fileType: input.fileType?.trim() ?? null,
-    uploadedBy: userId,
+    uploadedBy: ownerId,
     source: 'upload',
     originalUrl: null,
   })

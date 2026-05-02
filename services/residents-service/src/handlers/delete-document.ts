@@ -1,6 +1,6 @@
 import * as r from '../../../shared/response'
 import { deleteObject } from '../s3'
-import { getDocumentById, softDeleteDocument } from '../repository'
+import { getDocumentById, softDeleteDocument, getOwnerIdByCognitoSub } from '../repository'
 
 /**
  * DELETE /api/documents/:documentId
@@ -22,9 +22,13 @@ export async function handleDeleteDocument(
   const doc = await getDocumentById(documentId, hoaId)
   if (!doc) return r.notFound('Document')
 
-  // Board members can only delete their own uploads
-  if (role === 'board_member' && doc.uploadedBy !== userId) {
-    return r.forbidden('You can only delete documents you uploaded')
+  // Board members can only delete their own uploads.
+  // doc.uploadedBy is an owners.id UUID; resolve the caller's owners.id for comparison.
+  if (role === 'board_member') {
+    const ownerId = await getOwnerIdByCognitoSub(hoaId, userId)
+    if (!ownerId || doc.uploadedBy !== ownerId) {
+      return r.forbidden('You can only delete documents you uploaded')
+    }
   }
 
   // Remove from S3 first (best-effort — don't block on failure)

@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import * as r from '../../../shared/response'
 import { uploadFromUrl, makeDocumentKey } from '../s3'
 import { detectCategory, VALID_CATEGORIES } from '../categorize'
-import { createDocumentRecord } from '../repository'
+import { createDocumentRecord, getOwnerIdByCognitoSub } from '../repository'
 import { invokeDocumentProcessor } from '../processor-invoke'
 
 /**
@@ -116,6 +116,9 @@ export async function handleDocumentFromDrive(
     return r.serverError(`Failed to download from Google Drive: ${msg}`)
   }
 
+  // Resolve the uploader's internal owners.id UUID (uploaded_by FK references owners.id)
+  const ownerId = await getOwnerIdByCognitoSub(hoaId, userId)
+
   const doc = await createDocumentRecord({
     id: docId,
     hoaId,
@@ -128,7 +131,7 @@ export async function handleDocumentFromDrive(
     fileName,
     fileSizeBytes: sizeBytes,
     fileType: contentType,
-    uploadedBy: userId,
+    uploadedBy: ownerId,
     source: 'google_drive',
     originalUrl: input.driveUrl.trim(),
   })

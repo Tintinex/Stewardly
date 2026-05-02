@@ -23,6 +23,17 @@ export interface OwnerProfile {
   hoaName: string
 }
 
+/** Resolve the internal owners.id UUID from a Cognito sub + hoaId.
+ *  Returns null if the owner record hasn't been created yet.
+ *  Use this whenever uploaded_by / created_by needs a real owners FK. */
+export async function getOwnerIdByCognitoSub(hoaId: string, cognitoSub: string): Promise<string | null> {
+  const row = await queryOne<{ id: string }>(
+    `SELECT id FROM owners WHERE cognito_sub = :cognitoSub AND hoa_id = :hoaId AND deleted_at IS NULL LIMIT 1`,
+    [param.string('cognitoSub', cognitoSub), param.string('hoaId', hoaId)],
+  )
+  return row?.id ?? null
+}
+
 export async function getMyProfile(hoaId: string, cognitoSub: string): Promise<OwnerProfile | null> {
   const row = await queryOne<{
     id: string
@@ -565,7 +576,7 @@ export async function createDocumentRecord(input: {
   fileName: string
   fileType: string | null
   fileSizeBytes: number | null
-  uploadedBy: string
+  uploadedBy: string | null
   source: 'upload' | 'google_drive' | 'email'
   originalUrl: string | null
   emailSender?: string | null
@@ -592,7 +603,7 @@ export async function createDocumentRecord(input: {
       param.string('fileName', input.fileName),
       param.stringOrNull('fileType', input.fileType),
       param.stringOrNull('fileSizeBytes', input.fileSizeBytes != null ? String(input.fileSizeBytes) : null),
-      param.string('uploadedBy', input.uploadedBy),
+      param.stringOrNull('uploadedBy', input.uploadedBy),
       param.string('source', input.source),
       param.stringOrNull('originalUrl', input.originalUrl),
       param.stringOrNull('emailSender', input.emailSender ?? null),
