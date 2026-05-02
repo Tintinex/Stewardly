@@ -1,6 +1,56 @@
 import * as r from '../../../shared/response'
 import * as repo from '../repository'
 import { extractUnitsFromDocument } from '../../../document-processor/src/claude'
+import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager'
+
+// ── Rentcast AVM helper ───────────────────────────────────────────────────────
+
+let _rentcastKey: string | null | undefined = undefined  // undefined = not yet loaded
+
+async function getRentcastKey(): Promise<string | null> {
+  if (_rentcastKey !== undefined) return _rentcastKey
+
+  const secretArn = process.env.RENTCAST_SECRET_ARN
+  if (!secretArn) { _rentcastKey = null; return null }
+
+  try {
+    const sm = new SecretsManagerClient({ region: process.env.AWS_REGION ?? 'us-east-1' })
+    const res = await sm.send(new GetSecretValueCommand({ SecretId: secretArn }))
+    const value = res.SecretString?.trim()
+    _rentcastKey = (!value || value === 'REPLACE_ME') ? null : value
+    return _rentcastKey
+  } catch (err) {
+    console.error('[units] Failed to load Rentcast key:', err)
+    _rentcastKey = null
+    return null
+  }
+}
+
+interface AvmResult {
+  price: number
+  low: number
+  high: number
+}
+
+async function fetchRentcastEstimate(address: string): Promise<AvmResult | null> {
+  const key = await getRentcastKey()
+  if (!key) return null
+
+  try {
+    const url = `https://api.rentcast.io/v1/avm/value?address=${encodeURIComponent(address)}&propertyType=Condo`
+    const resp = await fetch(url, { headers: { 'X-Api-Key': key, Accept: 'application/json' } })
+    if (!resp.ok) {
+      console.error(`[units] Rentcast AVM error ${resp.status}:`, await resp.text().catch(() => ''))
+      return null
+    }
+    const data = await resp.json() as { price?: number; priceRangeLow?: number; priceRangeHigh?: number }
+    if (!data.price) return null
+    return { price: data.price, low: data.priceRangeLow ?? data.price, high: data.priceRangeHigh ?? data.price }
+  } catch (err) {
+    console.error('[units] Rentcast fetch failed:', err)
+    return null
+  }
+}
 
 /** GET /api/units — list all units with owner info */
 export async function handleListUnits(hoaId: string, role: string): Promise<r.ApiResponse> {
@@ -191,4 +241,55 @@ export async function handleScanDocument(body: string | null, hoaId: string, rol
 
   const units = await extractUnitsFromDocument(doc.extractedText)
   return r.ok({ documentTitle: doc.title, unitCount: units.length, units })
+}
+
+// ── POST /api/units/:unitId/refresh-estimate ──────────────────────────────────
+
+export async function handleRefreshUnitEstimate(
+  hoaId: string,
+  unitId: string,
+  role: string,
+): Promise<r.ApiResponse> {
+  if (role !== 'board_admin' && role !== 'board_member') {
+    return r.forbidden('Only board members can refresh estimates')
+  }
+
+  const unit = await repo.getUnitById(hoaId, unitId)
+  if (!unit) return r.notFound('Unit not found')
+
+  // Build the best available address string
+  const address = unit.address?.trim()
+  if (!address) {
+    return r.badRequest('Unit has no address set — add an address before fetching an estimate.')
+  }
+
+  // Check if Rentcast is configured
+  const key = await getRentcastKey()
+  if (!key) {
+    return r.ok({
+      notConfigured: true,
+      zillowUrl: `https://www.zillow.com/homes/${encodeURIComponent(address)}_rb/`,
+      message: 'Rentcast API key not configured. Add RENTCAST_SECRET_ARN to the Lambda environment.',
+    })
+  }
+
+  const estimate = await fetchRentcastEstimate(address)
+  if (!estimate) {
+    return r.ok({
+      notFound: true,
+      zillowUrl: `https://www.zillow.com/homes/${encodeURIComponent(address)}_rb/`,
+      message: 'No estimate found for this address. The property may not be in the Rentcast database.',
+    })
+  }
+
+  // Persist to DB
+  await repo.updateUnitEstimate(unitId, hoaId, estimate.price, estimate.low, estimate.high)
+
+  return r.ok({
+    zestimate:    estimate.price,
+    zestimateLow: estimate.low,
+    zestimateHigh: estimate.high,
+    zestimateAt:  new Date().toISOString(),
+    zillowUrl:    `https://www.zillow.com/homes/${encodeURIComponent(address)}_rb/`,
+  })
 }

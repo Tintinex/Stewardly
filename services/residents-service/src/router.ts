@@ -29,6 +29,7 @@ import {
   handleImportUnits,
   handleListDocumentsForScan,
   handleScanDocument,
+  handleRefreshUnitEstimate,
 } from './handlers/units'
 import {
   handleListPackages,
@@ -192,6 +193,13 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   if (method === 'POST' && path.endsWith('/units')) {
     if (!hoaId) return r.unauthorized()
     return handleCreateUnit(event.body ?? null, hoaId, role)
+  }
+
+  // POST /api/units/:unitId/refresh-estimate
+  const estimateMatch = path.match(/\/units\/([^/]+)\/refresh-estimate$/)
+  if (estimateMatch && method === 'POST') {
+    if (!hoaId) return r.unauthorized()
+    return handleRefreshUnitEstimate(hoaId, estimateMatch[1], role)
   }
 
   // PATCH /api/units/:unitId  |  DELETE /api/units/:unitId

@@ -951,6 +951,9 @@ export async function listUnits(hoaId: string): Promise<UnitWithOwner[]> {
     `SELECT u.id, u.unit_number AS "unitNumber", u.address,
             u.sqft, u.bedrooms, u.bathrooms,
             u.ownership_percent AS "ownershipPercent",
+            u.zestimate, u.zestimate_low AS "zestimateLow",
+            u.zestimate_high AS "zestimateHigh",
+            u.zestimate_at AS "zestimateAt",
             o.id AS "ownerId",
             CASE WHEN o.id IS NOT NULL THEN CONCAT(o.first_name, ' ', o.last_name) ELSE NULL END AS "ownerName",
             o.email AS "ownerEmail",
@@ -968,6 +971,9 @@ export async function getUnitById(hoaId: string, unitId: string): Promise<UnitWi
     `SELECT u.id, u.unit_number AS "unitNumber", u.address,
             u.sqft, u.bedrooms, u.bathrooms,
             u.ownership_percent AS "ownershipPercent",
+            u.zestimate, u.zestimate_low AS "zestimateLow",
+            u.zestimate_high AS "zestimateHigh",
+            u.zestimate_at AS "zestimateAt",
             o.id AS "ownerId",
             CASE WHEN o.id IS NOT NULL THEN CONCAT(o.first_name, ' ', o.last_name) ELSE NULL END AS "ownerName",
             o.email AS "ownerEmail",
@@ -976,6 +982,28 @@ export async function getUnitById(hoaId: string, unitId: string): Promise<UnitWi
      LEFT JOIN owners o ON o.unit_id = u.id AND o.hoa_id = u.hoa_id
      WHERE u.hoa_id = :hoaId AND u.id = :unitId`,
     [param.string('hoaId', hoaId), param.string('unitId', unitId)],
+  )
+}
+
+export async function updateUnitEstimate(
+  unitId: string,
+  hoaId: string,
+  price: number,
+  low: number,
+  high: number,
+): Promise<void> {
+  await execute(
+    `UPDATE units
+     SET zestimate = :price, zestimate_low = :low, zestimate_high = :high,
+         zestimate_at = NOW(), updated_at = NOW()
+     WHERE id = :unitId AND hoa_id = :hoaId`,
+    [
+      param.number('price', price),
+      param.number('low', low),
+      param.number('high', high),
+      param.string('unitId', unitId),
+      param.string('hoaId', hoaId),
+    ],
   )
 }
 

@@ -6,11 +6,12 @@ import {
   Building2, Plus, Upload, Search, Edit2, Trash2, X,
   ChevronUp, ChevronDown, AlertCircle, CheckCircle2,
   Download, Info, UserPlus, UserMinus, Scan, FileText,
-  Loader2, RefreshCw, Check,
+  Loader2, RefreshCw, Check, TrendingUp, ExternalLink,
 } from 'lucide-react'
 import {
   getCurrentUser, listUnits, createUnit, updateUnit, deleteUnit, importUnits,
   getMembers, assignUnit, listDocumentsForScan, scanDocumentForUnits, importUnits as importUnitsApi,
+  refreshUnitEstimate,
 } from '@/lib/api'
 import type { AuthUser, UnitWithOwner, Member } from '@/types'
 import type { DocSummary, ExtractedUnitRow } from '@/lib/api'
@@ -808,6 +809,11 @@ export default function UnitsPage() {
   const [importError, setImportError] = useState<string | null>(null)
   const [assignError, setAssignError] = useState<string | null>(null)
 
+  // Estimate state
+  const [estimating, setEstimating] = useState<string | null>(null)   // unitId being refreshed
+  const [estimatingAll, setEstimatingAll] = useState(false)
+  const [estimateNote, setEstimateNote] = useState<string | null>(null)
+
   // ── Load ──────────────────────────────────────────────────────────────────
 
   const load = useCallback(async () => {
@@ -982,6 +988,64 @@ export default function UnitsPage() {
     alert(`Imported ${result.created} units (${result.skipped} skipped).`)
   }
 
+  const handleRefreshEstimate = async (unit: UnitWithOwner) => {
+    if (!unit.address) {
+      setEstimateNote(`Unit ${unit.unitNumber} has no address — add one first.`)
+      return
+    }
+    setEstimating(unit.id)
+    setEstimateNote(null)
+    try {
+      const result = await refreshUnitEstimate(unit.id)
+      if (result.notConfigured) {
+        setEstimateNote('Rentcast API key not configured. Sign up free at rentcast.io and add the key to your environment.')
+      } else if (result.notFound) {
+        setEstimateNote(`No estimate found for Unit ${unit.unitNumber}. The address may not be in Rentcast's database.`)
+      } else if (result.zestimate) {
+        setUnits(prev => prev.map(u => u.id === unit.id ? {
+          ...u,
+          zestimate:     result.zestimate ?? null,
+          zestimateLow:  result.zestimateLow ?? null,
+          zestimateHigh: result.zestimateHigh ?? null,
+          zestimateAt:   result.zestimateAt ?? null,
+        } : u))
+      }
+    } catch {
+      setEstimateNote(`Failed to refresh estimate for Unit ${unit.unitNumber}.`)
+    } finally {
+      setEstimating(null)
+    }
+  }
+
+  const handleRefreshAllEstimates = async () => {
+    const withAddress = sorted.filter(u => u.address)
+    if (!withAddress.length) { setEstimateNote('No units have addresses set.'); return }
+    setEstimatingAll(true)
+    setEstimateNote(null)
+    let refreshed = 0
+    for (const unit of withAddress) {
+      try {
+        const result = await refreshUnitEstimate(unit.id)
+        if (result.notConfigured) {
+          setEstimateNote('Rentcast API key not configured. Sign up free at rentcast.io.')
+          break
+        }
+        if (result.zestimate) {
+          setUnits(prev => prev.map(u => u.id === unit.id ? {
+            ...u,
+            zestimate:     result.zestimate ?? null,
+            zestimateLow:  result.zestimateLow ?? null,
+            zestimateHigh: result.zestimateHigh ?? null,
+            zestimateAt:   result.zestimateAt ?? null,
+          } : u))
+          refreshed++
+        }
+      } catch { /* skip failed units */ }
+    }
+    setEstimatingAll(false)
+    if (refreshed > 0) setEstimateNote(`Refreshed estimates for ${refreshed} unit${refreshed !== 1 ? 's' : ''}.`)
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (!user) return null
@@ -1003,6 +1067,17 @@ export default function UnitsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleRefreshAllEstimates}
+              disabled={estimatingAll || loading}
+              className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+              title="Fetch estimated market values for all units from Rentcast"
+            >
+              {estimatingAll
+                ? <Loader2 size={16} className="animate-spin" />
+                : <TrendingUp size={16} />}
+              Refresh Estimates
+            </button>
             <button
               onClick={() => setScanOpen(true)}
               className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -1050,6 +1125,18 @@ export default function UnitsPage() {
           <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
             <AlertCircle size={16} />
             {error}
+          </div>
+        )}
+
+        {estimateNote && (
+          <div className="flex items-center justify-between rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700">
+            <div className="flex items-center gap-2">
+              <Info size={16} className="shrink-0" />
+              {estimateNote}
+            </div>
+            <button onClick={() => setEstimateNote(null)} className="text-blue-400 hover:text-blue-600 ml-3">
+              <X size={16} />
+            </button>
           </div>
         )}
 
@@ -1107,6 +1194,12 @@ export default function UnitsPage() {
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                       Beds / Baths
                     </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      <span className="flex items-center gap-1">
+                        <TrendingUp size={13} className="text-emerald-500" />
+                        Est. Value
+                      </span>
+                    </th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -1146,8 +1239,65 @@ export default function UnitsPage() {
                           ? `${unit.bedrooms ?? '?'} bd / ${unit.bathrooms ?? '?'} ba`
                           : <span className="text-gray-300 italic text-xs">—</span>}
                       </td>
+
+                      {/* Estimated value */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {unit.zestimate ? (
+                          <div>
+                            <p className="font-semibold text-emerald-700 text-sm">
+                              ${unit.zestimate.toLocaleString()}
+                            </p>
+                            {unit.zestimateLow && unit.zestimateHigh && unit.zestimateLow !== unit.zestimate && (
+                              <p className="text-[10px] text-gray-400">
+                                ${Math.round(unit.zestimateLow / 1000)}k – ${Math.round(unit.zestimateHigh / 1000)}k
+                              </p>
+                            )}
+                            {unit.zestimateAt && (
+                              <p className="text-[10px] text-gray-300" title={unit.zestimateAt}>
+                                {new Date(unit.zestimateAt).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleRefreshEstimate(unit)}
+                            disabled={estimating === unit.id}
+                            className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+                          >
+                            {estimating === unit.id
+                              ? <Loader2 size={12} className="animate-spin" />
+                              : <TrendingUp size={12} />}
+                            Get estimate
+                          </button>
+                        )}
+                      </td>
+
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-1 justify-end">
+                          {/* Refresh estimate / Zillow link */}
+                          {unit.zestimate && (
+                            <button
+                              onClick={() => handleRefreshEstimate(unit)}
+                              disabled={estimating === unit.id}
+                              title="Refresh estimate"
+                              className="rounded p-1.5 text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors disabled:opacity-50"
+                            >
+                              {estimating === unit.id
+                                ? <Loader2 size={15} className="animate-spin" />
+                                : <RefreshCw size={15} />}
+                            </button>
+                          )}
+                          {unit.address && (
+                            <a
+                              href={`https://www.zillow.com/homes/${encodeURIComponent(unit.address)}_rb/`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="View on Zillow"
+                              className="rounded p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                            >
+                              <ExternalLink size={15} />
+                            </a>
+                          )}
                           <button
                             onClick={() => openAssign(unit)}
                             className="rounded p-1.5 text-gray-400 hover:bg-teal/10 hover:text-teal transition-colors"
@@ -1183,11 +1333,11 @@ export default function UnitsPage() {
 
         {/* Stats row */}
         {units.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
             {[
-              { label: 'Total Units', value: units.length },
-              { label: 'Occupied', value: units.filter(u => u.ownerId).length },
-              { label: 'Unoccupied', value: units.filter(u => !u.ownerId).length },
+              { label: 'Total Units', value: String(units.length), accent: false },
+              { label: 'Occupied', value: String(units.filter(u => u.ownerId).length), accent: false },
+              { label: 'Unoccupied', value: String(units.filter(u => !u.ownerId).length), accent: false },
               {
                 label: 'Avg Sq Ft',
                 value: (() => {
@@ -1195,11 +1345,29 @@ export default function UnitsPage() {
                   if (!withSqft.length) return '—'
                   return Math.round(withSqft.reduce((s, u) => s + (u.sqft ?? 0), 0) / withSqft.length).toLocaleString()
                 })(),
+                accent: false,
+              },
+              {
+                label: 'Portfolio Value',
+                value: (() => {
+                  const withEst = units.filter(u => u.zestimate != null)
+                  if (!withEst.length) return '—'
+                  const total = withEst.reduce((s, u) => s + (u.zestimate ?? 0), 0)
+                  return total >= 1_000_000
+                    ? `$${(total / 1_000_000).toFixed(2)}M`
+                    : `$${Math.round(total).toLocaleString()}`
+                })(),
+                accent: true,
               },
             ].map(stat => (
-              <div key={stat.label} className="bg-white rounded-xl border border-gray-200 px-4 py-3">
-                <p className="text-xs text-gray-500 font-medium">{stat.label}</p>
-                <p className="text-2xl font-bold text-gray-900 mt-0.5">{stat.value}</p>
+              <div key={stat.label} className={`rounded-xl border px-4 py-3 ${stat.accent ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}>
+                <p className={`text-xs font-medium ${stat.accent ? 'text-emerald-600' : 'text-gray-500'}`}>{stat.label}</p>
+                <p className={`text-2xl font-bold mt-0.5 ${stat.accent ? 'text-emerald-700' : 'text-gray-900'}`}>{stat.value}</p>
+                {stat.accent && units.filter(u => u.zestimate).length > 0 && (
+                  <p className="text-[10px] text-emerald-500 mt-0.5">
+                    {units.filter(u => u.zestimate).length} of {units.length} units · Rentcast AVM
+                  </p>
+                )}
               </div>
             ))}
           </div>

@@ -609,6 +609,21 @@ export async function assignUnit(memberId: string, unitId: string | null): Promi
   })
 }
 
+export interface EstimateResult {
+  zestimate?: number
+  zestimateLow?: number
+  zestimateHigh?: number
+  zestimateAt?: string
+  zillowUrl?: string
+  notConfigured?: boolean
+  notFound?: boolean
+  message?: string
+}
+
+export async function refreshUnitEstimate(unitId: string): Promise<EstimateResult> {
+  return apiFetch<EstimateResult>(`/api/units/${unitId}/refresh-estimate`, { method: 'POST' })
+}
+
 /** List documents available for unit scanning */
 export interface DocSummary {
   id: string

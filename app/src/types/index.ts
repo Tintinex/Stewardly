@@ -31,6 +31,10 @@ export interface UnitWithOwner extends Omit<Unit, 'hoaId'> {
   ownerId: string | null
   ownerName: string | null
   ownerEmail: string | null
+  zestimate: number | null
+  zestimateLow: number | null
+  zestimateHigh: number | null
+  zestimateAt: string | null
 }
 
 export type UserRole = 'board_admin' | 'board_member' | 'homeowner' | 'superadmin'
