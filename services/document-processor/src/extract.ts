@@ -1,55 +1,42 @@
 /**
  * Text extraction utilities for the document processor.
- * Supports PDF (via pdf-parse) and plain text files.
- * Other types (Word, Excel, images) are skipped gracefully.
+ *
+ * PDFs are handled natively by Claude's document API (no pdf-parse — avoids
+ * the DOMMatrix / browser-API issues that crash pdf-parse in Lambda).
+ * Plain-text and CSV files are decoded directly from the buffer.
+ * All other types (Word, Excel, images) are skipped gracefully.
  */
 
-// Max characters to feed into Claude — keeps costs predictable and avoids
-// context overflow on very large documents.
+// Max characters for plain-text files fed into Claude.
 const MAX_CHARS = 80_000
 
 export interface ExtractResult {
+  /** Raw text — empty string when skipped or when a PDF (handled by Claude). */
   text: string
-  pageCount?: number
+  /** True when this is a PDF that Claude should receive as a native document. */
+  isPdf?: boolean
   skipped: boolean
   skipReason?: string
 }
 
 /**
- * Extract plain text from a file buffer.
- * Returns { skipped: true } for unsupported types so the caller
- * can still create the DB record without AI fields.
+ * Classify the file and extract text where possible.
+ *
+ * - PDFs   → { isPdf: true, text: '' }  (caller passes buffer to Claude directly)
+ * - Text   → { text: '<content>' }
+ * - Other  → { skipped: true }
  */
-export async function extractText(
+export function extractText(
   buffer: Buffer,
   contentType: string,
   fileName: string,
-): Promise<ExtractResult> {
+): ExtractResult {
   const lowerType = (contentType ?? '').toLowerCase()
   const lowerName = (fileName ?? '').toLowerCase()
 
-  // ── PDF ───────────────────────────────────────────────────────────────────
+  // ── PDF — let Claude read it natively ────────────────────────────────────
   if (lowerType === 'application/pdf' || lowerName.endsWith('.pdf')) {
-    try {
-      // Dynamically import pdf-parse to avoid issues with the test-file check
-      // it does at module load time in some environments.
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const pdfParse = require('pdf-parse') as (
-        data: Buffer,
-        options?: { max?: number }
-      ) => Promise<{ text: string; numpages: number }>
-
-      const result = await pdfParse(buffer, { max: 0 }) // 0 = all pages
-      const text = result.text.replace(/\s+/g, ' ').trim()
-      return {
-        text: text.slice(0, MAX_CHARS),
-        pageCount: result.numpages,
-        skipped: false,
-      }
-    } catch (err) {
-      console.error('[extract] pdf-parse failed:', err)
-      return { text: '', skipped: true, skipReason: 'PDF parsing failed' }
-    }
+    return { text: '', isPdf: true, skipped: false }
   }
 
   // ── Plain text ────────────────────────────────────────────────────────────

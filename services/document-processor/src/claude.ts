@@ -61,7 +61,7 @@ export async function analyzeDocument(
 
   try {
     const message = await client.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20250514',
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: [
@@ -122,6 +122,86 @@ ${extractedText}`,
   }
 }
 
+// ─── PDF-native analysis (no pdf-parse — Claude reads the PDF directly) ──────
+
+/**
+ * Analyse a PDF by passing the raw buffer directly to Claude as a document.
+ * Avoids all browser-API requirements (DOMMatrix etc.) that pdf-parse needs.
+ * Returns extracted text + AI summary + key points in a single API call.
+ */
+export async function analyzePDFDocument(
+  pdfBuffer: Buffer,
+  title: string,
+  category: string,
+): Promise<{ extractedText: string; summary: string; keyPoints: string[] } | null> {
+  const apiKey = await getApiKey()
+  if (!apiKey) return null
+
+  const client = new Anthropic({ apiKey })
+  const pdfBase64 = pdfBuffer.toString('base64')
+
+  try {
+    const message = await client.messages.create({
+      model: 'claude-haiku-4-5-20250514',
+      max_tokens: 3000,
+      system: `You are an expert at analysing HOA (Homeowners Association) documents.
+Respond in plain, friendly language that any homeowner can understand.
+Never add information not present in the document.`,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 },
+            } as Parameters<typeof client.messages.create>[0]['messages'][0]['content'][0],
+            {
+              type: 'text',
+              text: `Document title: "${title}" | Category: ${category}
+
+Please provide:
+1. FULL_TEXT: A faithful plain-text transcription of all meaningful text in this document (no markdown, just the words as they appear).
+2. SUMMARY: 2-3 short paragraphs covering the main topics and key provisions.
+3. KEY_POINTS: A JSON array of 5-10 concise bullet points.
+
+Format your response EXACTLY as:
+FULL_TEXT:
+<transcription here>
+
+SUMMARY:
+<summary here>
+
+KEY_POINTS:
+["point 1", "point 2", ...]`,
+            },
+          ],
+        },
+      ],
+    })
+
+    const content = message.content[0]
+    if (content.type !== 'text') return null
+    const text = content.text
+
+    const fullTextMatch = text.match(/FULL_TEXT:\s*([\s\S]+?)(?=SUMMARY:|$)/i)
+    const summaryMatch  = text.match(/SUMMARY:\s*([\s\S]+?)(?=KEY_POINTS:|$)/i)
+    const kpMatch       = text.match(/KEY_POINTS:\s*(\[[\s\S]*?\])/i)
+
+    const extractedText = fullTextMatch?.[1]?.trim() ?? ''
+    const summary       = summaryMatch?.[1]?.trim() ?? ''
+    let keyPoints: string[] = []
+    if (kpMatch) {
+      try { keyPoints = JSON.parse(kpMatch[1]) as string[] } catch { /* ignore */ }
+    }
+
+    if (!extractedText && !summary) return null
+    return { extractedText, summary, keyPoints }
+  } catch (err) {
+    console.error('[claude] analyzePDFDocument failed:', err)
+    return null
+  }
+}
+
 // ─── Unit extraction ─────────────────────────────────────────────────────────
 
 export interface ExtractedUnitRow {
@@ -151,7 +231,7 @@ export async function extractUnitsFromDocument(
 
   try {
     const message = await client.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20250514',
       max_tokens: 4096,
       system: `You are a data-extraction assistant for HOA management software.
 Extract structured unit and resident information from documents.
@@ -226,7 +306,7 @@ export async function parsePackageLabel(
 
   try {
     const message = await client.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20250514',
       max_tokens: 512,
       messages: [
         {
@@ -306,7 +386,7 @@ export async function answerQuestion(
 
   try {
     const message = await client.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20250514',
       max_tokens: 1500,
       system: `You are a helpful assistant for ${hoaName} HOA residents.
 Answer questions based ONLY on the provided HOA documents.

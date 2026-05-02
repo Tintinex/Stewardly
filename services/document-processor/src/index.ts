@@ -15,7 +15,7 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { query, execute, param } from '../../shared/db/client'
 import { extractText } from './extract'
-import { analyzeDocument } from './claude'
+import { analyzeDocument, analyzePDFDocument } from './claude'
 
 const s3 = new S3Client({ region: process.env.AWS_REGION ?? 'us-east-1' })
 const BUCKET = process.env.S3_BUCKET!
@@ -53,8 +53,8 @@ export const handler = async (event: ProcessDocumentEvent): Promise<void> => {
     }
     const buffer = Buffer.concat(chunks)
 
-    // ── Extract text ────────────────────────────────────────────────────────
-    const extraction = await extractText(buffer, fileType, fileName)
+    // ── Classify / extract text ─────────────────────────────────────────────
+    const extraction = extractText(buffer, fileType, fileName)
 
     if (extraction.skipped) {
       console.log(`[document-processor] Skipped text extraction: ${extraction.skipReason}`)
@@ -67,8 +67,26 @@ export const handler = async (event: ProcessDocumentEvent): Promise<void> => {
       return
     }
 
-    // ── AI analysis ─────────────────────────────────────────────────────────
-    const aiResult = await analyzeDocument(title, category, extraction.text)
+    let extractedText: string | null = null
+    let aiSummary: string | null     = null
+    let aiKeyPoints: string | null   = null
+
+    if (extraction.isPdf) {
+      // ── PDF: Claude reads the document natively ────────────────────────────
+      console.log(`[document-processor] Sending PDF to Claude for native extraction: doc ${docId}`)
+      const pdfResult = await analyzePDFDocument(buffer, title, category)
+      if (pdfResult) {
+        extractedText = pdfResult.extractedText || null
+        aiSummary     = pdfResult.summary || null
+        aiKeyPoints   = pdfResult.keyPoints.length > 0 ? JSON.stringify(pdfResult.keyPoints) : null
+      }
+    } else {
+      // ── Plain text: extract then analyse separately ────────────────────────
+      extractedText = extraction.text || null
+      const aiResult = extractedText ? await analyzeDocument(title, category, extractedText) : null
+      aiSummary   = aiResult?.summary ?? null
+      aiKeyPoints = aiResult ? JSON.stringify(aiResult.keyPoints) : null
+    }
 
     // ── Update DB ───────────────────────────────────────────────────────────
     await execute(
@@ -83,13 +101,13 @@ export const handler = async (event: ProcessDocumentEvent): Promise<void> => {
        WHERE id = :docId`,
       [
         param.string('docId', docId),
-        param.stringOrNull('extractedText', extraction.text || null),
-        param.stringOrNull('aiSummary', aiResult?.summary ?? null),
-        param.stringOrNull('aiKeyPoints', aiResult ? JSON.stringify(aiResult.keyPoints) : null),
+        param.stringOrNull('extractedText', extractedText),
+        param.stringOrNull('aiSummary', aiSummary),
+        param.stringOrNull('aiKeyPoints', aiKeyPoints),
       ],
     )
 
-    console.log(`[document-processor] Done: doc ${docId}, text=${extraction.text.length} chars, ai=${aiResult ? 'yes' : 'no'}`)
+    console.log(`[document-processor] Done: doc ${docId}, text=${extractedText?.length ?? 0} chars, ai=${aiSummary ? 'yes' : 'no'}`)
   } catch (err) {
     console.error(`[document-processor] Error processing doc ${docId}:`, err)
     await execute(
