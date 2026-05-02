@@ -1,11 +1,40 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { Package, Plus, CheckCircle, RotateCcw, Trash2, Search, Filter, X, ChevronDown } from 'lucide-react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { Package, Plus, CheckCircle, RotateCcw, Trash2, Search, X, Camera, Loader2, Sparkles } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { useAuth } from '@/contexts/AuthContext'
 import * as api from '@/lib/api'
 import type { PackageRecord, PackageCarrier, PackageStatus } from '@/types'
+
+// ── Image compression helper ──────────────────────────────────────────────────
+
+function compressImage(file: File): Promise<{ base64: string; mediaType: 'image/jpeg' }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = e => {
+      const img = new Image()
+      img.onload = () => {
+        const MAX = 1400
+        let { width, height } = img
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round(height * MAX / width); width = MAX }
+          else { width = Math.round(width * MAX / height); height = MAX }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88)
+        resolve({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg' })
+      }
+      img.onerror = reject
+      img.src = e.target!.result as string
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -47,6 +76,12 @@ function LogPackageModal({ onClose, onSaved }: LogPackageModalProps) {
   const [saving, setSaving]             = useState(false)
   const [error, setError]               = useState<string | null>(null)
 
+  // Label scanning state
+  const fileInputRef                      = useRef<HTMLInputElement>(null)
+  const [scanPreview, setScanPreview]     = useState<string | null>(null)
+  const [scanning, setScanning]           = useState(false)
+  const [scanSuccess, setScanSuccess]     = useState(false)
+
   useEffect(() => {
     api.listUnits().then(setUnits).catch(() => {})
   }, [])
@@ -55,6 +90,37 @@ function LogPackageModal({ onClose, onSaved }: LogPackageModalProps) {
     u.unitNumber.toLowerCase().includes(unitSearch.toLowerCase()) ||
     (u.ownerName ?? '').toLowerCase().includes(unitSearch.toLowerCase()),
   )
+
+  // ── Label scan ──────────────────────────────────────────────────────────────
+
+  const handleScanFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    // Show thumbnail immediately
+    setScanPreview(URL.createObjectURL(file))
+    setScanSuccess(false)
+    setScanning(true)
+    setError(null)
+    try {
+      const { base64, mediaType } = await compressImage(file)
+      const result = await api.parsePackageLabel(base64, mediaType)
+      // Auto-fill whatever was extracted
+      if (CARRIERS.includes(result.carrier as PackageCarrier)) {
+        setCarrier(result.carrier as PackageCarrier)
+      }
+      if (result.trackingNumber) setTracking(result.trackingNumber)
+      if (result.recipientName)  setRecipient(result.recipientName)
+      setScanSuccess(true)
+    } catch {
+      setError('Could not read the label — please fill in the fields manually.')
+    } finally {
+      setScanning(false)
+      // Reset input so the same file can be re-selected if needed
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  // ── Save ────────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
     if (!selectedUnit) { setError('Please select a unit'); return }
@@ -80,18 +146,79 @@ function LogPackageModal({ onClose, onSaved }: LogPackageModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[92vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-100 shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">Log New Package</h2>
           <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-gray-100 transition-colors">
             <X className="h-5 w-5 text-gray-500" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="overflow-y-auto flex-1 p-6 space-y-4">
           {error && (
             <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{error}</div>
           )}
+
+          {/* ── Scan label ── */}
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleScanFile}
+            />
+            {!scanPreview ? (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-teal-300 bg-teal-50/50 text-teal-700 text-sm font-medium hover:bg-teal-50 hover:border-teal-400 transition-colors"
+              >
+                <Camera className="h-4 w-4" />
+                Scan Package Label
+              </button>
+            ) : (
+              <div className="rounded-xl border border-gray-200 overflow-hidden">
+                {/* Preview strip */}
+                <div className="relative bg-gray-900">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={scanPreview}
+                    alt="Scanned label"
+                    className="w-full max-h-36 object-contain"
+                  />
+                  {scanning && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 gap-2">
+                      <Loader2 className="h-6 w-6 text-white animate-spin" />
+                      <span className="text-white text-xs font-medium">Reading label…</span>
+                    </div>
+                  )}
+                  {scanSuccess && !scanning && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <div className="flex items-center gap-1.5 bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Fields auto-filled
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* Rescan button */}
+                <div className="px-3 py-2 bg-gray-50 flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Label scanned · Review fields below</span>
+                  <button
+                    type="button"
+                    onClick={() => { setScanPreview(null); setScanSuccess(false); fileInputRef.current?.click() }}
+                    className="text-xs text-teal-600 font-medium hover:text-teal-700 flex items-center gap-1"
+                  >
+                    <Camera className="h-3 w-3" />
+                    Rescan
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Unit picker */}
           <div className="relative">
@@ -203,7 +330,7 @@ function LogPackageModal({ onClose, onSaved }: LogPackageModalProps) {
           </div>
         </div>
 
-        <div className="flex gap-3 p-6 pt-0">
+        <div className="flex gap-3 p-6 pt-4 border-t border-gray-100 shrink-0">
           <button
             onClick={onClose}
             className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
@@ -212,7 +339,7 @@ function LogPackageModal({ onClose, onSaved }: LogPackageModalProps) {
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || !selectedUnit}
+            disabled={saving || scanning || !selectedUnit}
             className="flex-1 px-4 py-2.5 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 disabled:opacity-50 transition-colors"
           >
             {saving ? 'Logging…' : 'Log Package'}

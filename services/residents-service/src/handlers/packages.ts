@@ -10,6 +10,7 @@ import {
   getUnitByNumber,
   listUnitsForHoa,
 } from '../repository'
+import { parsePackageLabel } from '../../../document-processor/src/claude'
 
 export type PackageCarrier = 'USPS' | 'FedEx' | 'UPS' | 'Amazon' | 'DHL' | 'OnTrac' | 'Other'
 export const CARRIERS: PackageCarrier[] = ['USPS', 'FedEx', 'UPS', 'Amazon', 'DHL', 'OnTrac', 'Other']
@@ -178,4 +179,42 @@ export async function handleDeletePackage(
 
   await deletePackage(packageId, hoaId)
   return r.ok({ success: true })
+}
+
+// ── POST /api/packages/parse-label ────────────────────────────────────────────
+// Board only. Accepts a base64 image and returns extracted label fields.
+
+const ALLOWED_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const
+type AllowedMediaType = (typeof ALLOWED_MEDIA_TYPES)[number]
+
+export async function handleParsePackageLabel(
+  body: string | null,
+  role: string,
+): Promise<r.ApiResponse> {
+  if (role !== 'board_admin' && role !== 'board_member') {
+    return r.forbidden('Only board members can use label scanning')
+  }
+  if (!body) return r.badRequest('Request body is required')
+
+  let parsed: { imageBase64?: string; mediaType?: string }
+  try {
+    parsed = JSON.parse(body) as { imageBase64?: string; mediaType?: string }
+  } catch {
+    return r.badRequest('Invalid JSON')
+  }
+
+  const { imageBase64, mediaType } = parsed
+  if (!imageBase64 || typeof imageBase64 !== 'string') {
+    return r.badRequest('imageBase64 is required')
+  }
+  if (!mediaType || !ALLOWED_MEDIA_TYPES.includes(mediaType as AllowedMediaType)) {
+    return r.badRequest('mediaType must be one of: image/jpeg, image/png, image/webp, image/gif')
+  }
+
+  const result = await parsePackageLabel(imageBase64, mediaType as AllowedMediaType)
+  if (!result) {
+    return r.ok({ carrier: 'Other' }) // graceful fallback — no fields extracted
+  }
+
+  return r.ok(result)
 }

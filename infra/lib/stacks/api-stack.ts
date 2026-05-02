@@ -354,6 +354,7 @@ export class ApiStack extends cdk.Stack {
       { id: 'HoaActivity',       path: '/api/hoa/activity',              methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },
       // Package management
       { id: 'PackagesPendingCount', path: '/api/packages/pending-count',  methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },
+      { id: 'PackagesParseLabel',   path: '/api/packages/parse-label',   methods: [apigatewayv2.HttpMethod.POST],                                     fn: residentsLambda.function },
       { id: 'Packages',             path: '/api/packages',                methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],        fn: residentsLambda.function },
       { id: 'PackageById',          path: '/api/packages/{packageId}',    methods: [apigatewayv2.HttpMethod.PATCH, apigatewayv2.HttpMethod.DELETE],    fn: residentsLambda.function },
       // Admin routes — superadmin role enforced in the Lambda itself

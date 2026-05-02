@@ -36,6 +36,7 @@ import {
   handleCreatePackage,
   handleUpdatePackage,
   handleDeletePackage,
+  handleParsePackageLabel,
 } from './handlers/packages'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -210,6 +211,12 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   if (method === 'GET' && path.endsWith('/packages/pending-count')) {
     if (!hoaId) return r.unauthorized()
     return handlePendingPackageCount(hoaId, userId, role)
+  }
+
+  // POST /api/packages/parse-label — must come before /packages catch-all
+  if (method === 'POST' && path.endsWith('/packages/parse-label')) {
+    if (!hoaId) return r.unauthorized()
+    return handleParsePackageLabel(event.body ?? null, role)
   }
 
   // GET /api/packages

@@ -692,3 +692,18 @@ export async function updatePackage(
 export async function deletePackage(packageId: string): Promise<void> {
   return apiFetch<void>(`/api/packages/${packageId}`, { method: 'DELETE' })
 }
+
+export interface ParsedLabelResult {
+  carrier: string
+  trackingNumber?: string
+  recipientName?: string
+  recipientAddress?: string
+  senderName?: string
+}
+
+export async function parsePackageLabel(imageBase64: string, mediaType: string): Promise<ParsedLabelResult> {
+  return apiFetch<ParsedLabelResult>('/api/packages/parse-label', {
+    method: 'POST',
+    body: JSON.stringify({ imageBase64, mediaType }),
+  })
+}

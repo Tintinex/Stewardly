@@ -199,6 +199,83 @@ ${extractedText.slice(0, 60_000)}`,
   }
 }
 
+// ─── Package label parsing ────────────────────────────────────────────────────
+
+export type LabelCarrier = 'USPS' | 'FedEx' | 'UPS' | 'Amazon' | 'DHL' | 'OnTrac' | 'Other'
+
+export interface ParsedPackageLabel {
+  carrier: LabelCarrier
+  trackingNumber?: string
+  recipientName?: string
+  recipientAddress?: string
+  senderName?: string
+}
+
+/**
+ * Use Claude vision to extract structured package information from a label photo.
+ * Accepts a base64-encoded image (JPEG/PNG/WebP) and returns parsed fields.
+ */
+export async function parsePackageLabel(
+  imageBase64: string,
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
+): Promise<ParsedPackageLabel | null> {
+  const apiKey = await getApiKey()
+  if (!apiKey) return null
+
+  const client = new Anthropic({ apiKey })
+
+  try {
+    const message = await client.messages.create({
+      model: 'claude-3-5-haiku-20241022',
+      max_tokens: 512,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: mediaType, data: imageBase64 },
+            },
+            {
+              type: 'text',
+              text: `Extract shipping information from this package label photo.
+Return ONLY a JSON object with these fields (omit any field not visible):
+- carrier: one of "USPS", "FedEx", "UPS", "Amazon", "DHL", "OnTrac", "Other"
+- trackingNumber: the full tracking number as a string (no spaces)
+- recipientName: the name of the person or company the package is addressed to
+- recipientAddress: the delivery address (single line)
+- senderName: the sender / return name if visible
+
+Do NOT wrap the JSON in markdown code fences. Return raw JSON only.`,
+            },
+          ],
+        },
+      ],
+    })
+
+    const content = message.content[0]
+    if (content.type !== 'text') return null
+
+    const raw = content.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
+    const parsed = JSON.parse(raw) as ParsedPackageLabel
+
+    // Normalise carrier to known values
+    const known: LabelCarrier[] = ['USPS', 'FedEx', 'UPS', 'Amazon', 'DHL', 'OnTrac']
+    const upperCarrier = (parsed.carrier as string)?.toUpperCase?.()
+    if (!known.some(c => c.toUpperCase() === upperCarrier)) {
+      parsed.carrier = 'Other'
+    } else {
+      // Preserve original casing for known carriers
+      parsed.carrier = known.find(c => c.toUpperCase() === upperCarrier) ?? 'Other'
+    }
+
+    return parsed
+  } catch (err) {
+    console.error('[claude] parsePackageLabel failed:', err)
+    return null
+  }
+}
+
 /**
  * Answer a resident's question using the provided HOA document context.
  */
