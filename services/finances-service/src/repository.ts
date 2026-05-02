@@ -501,6 +501,55 @@ export async function bulkCreateAssessments(
   return { created }
 }
 
+export async function bulkCreateAssessmentsByPercent(
+  hoaId: string,
+  totalAmount: number,
+  description: string,
+  dueDate: string,
+  notes?: string,
+): Promise<{ created: number; skipped: number }> {
+  // Get all units with an ownership_percent set
+  const units = await query<{ id: string; ownershipPercent: number }>(
+    `SELECT id, ownership_percent AS "ownershipPercent"
+     FROM units
+     WHERE hoa_id = :hoaId AND ownership_percent IS NOT NULL AND ownership_percent > 0
+     ORDER BY unit_number ASC`,
+    [param.string('hoaId', hoaId)],
+  )
+
+  const allUnits = await query<{ id: string }>(
+    `SELECT id FROM units WHERE hoa_id = :hoaId`,
+    [param.string('hoaId', hoaId)],
+  )
+
+  let created = 0
+  const skipped = allUnits.length - units.length
+
+  for (const unit of units) {
+    const unitAmount = Math.round((totalAmount * unit.ownershipPercent / 100) * 100) / 100
+    if (unitAmount <= 0) { continue }
+    try {
+      await execute(
+        `INSERT INTO assessments (id, hoa_id, unit_id, amount, description, due_date, notes, status)
+         VALUES (gen_random_uuid(), :hoaId, :unitId, :amount, :description, :dueDate, :notes, 'pending')
+         ON CONFLICT DO NOTHING`,
+        [
+          param.string('hoaId', hoaId),
+          param.string('unitId', unit.id),
+          param.double('amount', unitAmount),
+          param.string('description', description),
+          param.string('dueDate', dueDate),
+          param.stringOrNull('notes', notes ?? null),
+        ],
+      )
+      created++
+    } catch {
+      // Skip duplicates or constraint errors
+    }
+  }
+  return { created, skipped }
+}
+
 export async function updateAssessment(
   hoaId: string,
   assessmentId: string,

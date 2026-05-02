@@ -22,8 +22,15 @@ export interface Unit {
   sqft: number | null
   bedrooms: number | null
   bathrooms: number | null
+  ownershipPercent: number | null
   createdAt: string
   updatedAt: string
+}
+
+export interface UnitWithOwner extends Omit<Unit, 'hoaId'> {
+  ownerId: string | null
+  ownerName: string | null
+  ownerEmail: string | null
 }
 
 export type UserRole = 'board_admin' | 'board_member' | 'homeowner' | 'superadmin'

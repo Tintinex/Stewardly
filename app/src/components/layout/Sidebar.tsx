@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, CheckSquare, Calendar, Users, BarChart2, MessageSquare,
-  Settings, LogOut, ShieldAlert, Home, Wrench, Megaphone, FileText, UserCheck,
+  Settings, LogOut, ShieldAlert, Home, Wrench, Megaphone, FileText, UserCheck, Building2,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAuth } from '@/contexts/AuthContext'
@@ -24,6 +24,7 @@ const BOARD_ITEMS = [
   { href: '/dashboard/meetings',  label: 'Meetings',     icon: Calendar },
   { href: '/dashboard/members',   label: 'Members',      icon: UserCheck },
   { href: '/dashboard/residents', label: 'Residents',    icon: Users },
+  { href: '/dashboard/units',     label: 'Units',        icon: Building2 },
   { href: '/dashboard/finances',  label: 'Finances',     icon: BarChart2 },
   { href: '/dashboard/messages',  label: 'Messages',     icon: MessageSquare },
   { href: '/dashboard/documents', label: 'Documents',    icon: FileText },

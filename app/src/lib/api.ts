@@ -10,7 +10,7 @@ import type {
   CreateMeetingPayload, CreateResidentPayload, CreatePostPayload,
   MyUnitData, MaintenanceRequest, CreateMaintenancePayload, DocumentRecord,
   HoaStats, Member, HoaInviteCode, ActivityEntry,
-  RegisterHoaPayload, RegisterHoaResult,
+  RegisterHoaPayload, RegisterHoaResult, UnitWithOwner,
 } from '@/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -549,4 +549,54 @@ export async function createHoaAdminUser(hoaId: string, payload: {
 }): Promise<{ owner: Member; temporaryPassword: string; hoaName: string }> {
   if (config.useMock) { await delay(400); return { owner: {} as Member, temporaryPassword: 'TempPass123!', hoaName: 'Mock HOA' } }
   return apiFetch(`/api/admin/hoas/${hoaId}/admin-user`, { method: 'POST', body: JSON.stringify(payload) })
+}
+
+// ─── Units ────────────────────────────────────────────────────────────────────
+
+export async function listUnits(): Promise<UnitWithOwner[]> {
+  if (config.useMock) { await delay(300); return [] }
+  return apiFetch<UnitWithOwner[]>('/api/units')
+}
+
+export async function createUnit(payload: {
+  unitNumber: string
+  address?: string
+  sqft?: number | null
+  bedrooms?: number | null
+  bathrooms?: number | null
+  ownershipPercent?: number | null
+}): Promise<UnitWithOwner> {
+  return apiFetch<UnitWithOwner>('/api/units', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export async function updateUnit(unitId: string, payload: {
+  unitNumber?: string
+  address?: string
+  sqft?: number | null
+  bedrooms?: number | null
+  bathrooms?: number | null
+  ownershipPercent?: number | null
+}): Promise<UnitWithOwner> {
+  return apiFetch<UnitWithOwner>(`/api/units/${unitId}`, { method: 'PATCH', body: JSON.stringify(payload) })
+}
+
+export async function deleteUnit(unitId: string): Promise<void> {
+  return apiFetch<void>(`/api/units/${unitId}`, { method: 'DELETE' })
+}
+
+export async function importUnits(payload: {
+  csv?: string
+  units?: Array<{
+    unitNumber: string
+    address?: string
+    sqft?: number
+    bedrooms?: number
+    bathrooms?: number
+    ownershipPercent?: number
+  }>
+}): Promise<{ created: number; skipped: number }> {
+  return apiFetch<{ created: number; skipped: number }>('/api/units/import', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }

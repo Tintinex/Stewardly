@@ -21,6 +21,13 @@ import { handleListMembers } from './handlers/list-members'
 import { handleUpdateMemberStatus } from './handlers/update-member-status'
 import { handleGetHoaInviteCode, handleRotateHoaInviteCode } from './handlers/hoa-invite-code'
 import { handleActivityLog } from './handlers/activity-log'
+import {
+  handleListUnits,
+  handleCreateUnit,
+  handleUpdateUnit,
+  handleDeleteUnit,
+  handleImportUnits,
+} from './handlers/units'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -143,6 +150,37 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   if (method === 'GET' && path.endsWith('/hoa/activity')) {
     if (!hoaId) return r.unauthorized()
     return handleActivityLog(event, hoaId, role)
+  }
+
+  // ── Units ─────────────────────────────────────────────────────────────────────
+
+  // POST /api/units/import — must come before /units catch-all
+  if (method === 'POST' && path.endsWith('/units/import')) {
+    if (!hoaId) return r.unauthorized()
+    return handleImportUnits(event.body ?? null, hoaId, role)
+  }
+
+  // GET /api/units
+  if (method === 'GET' && path.endsWith('/units')) {
+    if (!hoaId) return r.unauthorized()
+    return handleListUnits(hoaId, role)
+  }
+
+  // POST /api/units
+  if (method === 'POST' && path.endsWith('/units')) {
+    if (!hoaId) return r.unauthorized()
+    return handleCreateUnit(event.body ?? null, hoaId, role)
+  }
+
+  // PATCH /api/units/:unitId  |  DELETE /api/units/:unitId
+  const unitMatch = path.match(/\/units\/([^/]+)$/)
+  if (unitMatch && method === 'PATCH') {
+    if (!hoaId) return r.unauthorized()
+    return handleUpdateUnit(event.body ?? null, hoaId, unitMatch[1], role)
+  }
+  if (unitMatch && method === 'DELETE') {
+    if (!hoaId) return r.unauthorized()
+    return handleDeleteUnit(hoaId, unitMatch[1], role)
   }
 
   // Remaining routes require a valid UUID hoaId

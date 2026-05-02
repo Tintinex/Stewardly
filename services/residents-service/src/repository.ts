@@ -876,6 +876,171 @@ export async function logActivity(
   )
 }
 
+// ── Units ─────────────────────────────────────────────────────────────────────
+
+export interface UnitWithOwner {
+  id: string
+  unitNumber: string
+  address: string
+  sqft: number | null
+  bedrooms: number | null
+  bathrooms: number | null
+  ownershipPercent: number | null
+  ownerId: string | null
+  ownerName: string | null
+  ownerEmail: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateUnitInput {
+  unitNumber: string
+  address?: string
+  sqft?: number | null
+  bedrooms?: number | null
+  bathrooms?: number | null
+  ownershipPercent?: number | null
+}
+
+export async function listUnits(hoaId: string): Promise<UnitWithOwner[]> {
+  return query<UnitWithOwner>(
+    `SELECT u.id, u.unit_number AS "unitNumber", u.address,
+            u.sqft, u.bedrooms, u.bathrooms,
+            u.ownership_percent AS "ownershipPercent",
+            o.id AS "ownerId",
+            CASE WHEN o.id IS NOT NULL THEN CONCAT(o.first_name, ' ', o.last_name) ELSE NULL END AS "ownerName",
+            o.email AS "ownerEmail",
+            u.created_at AS "createdAt", u.updated_at AS "updatedAt"
+     FROM units u
+     LEFT JOIN owners o ON o.unit_id = u.id AND o.hoa_id = u.hoa_id
+     WHERE u.hoa_id = :hoaId
+     ORDER BY u.unit_number ASC`,
+    [param.string('hoaId', hoaId)],
+  )
+}
+
+export async function getUnitById(hoaId: string, unitId: string): Promise<UnitWithOwner | null> {
+  return queryOne<UnitWithOwner>(
+    `SELECT u.id, u.unit_number AS "unitNumber", u.address,
+            u.sqft, u.bedrooms, u.bathrooms,
+            u.ownership_percent AS "ownershipPercent",
+            o.id AS "ownerId",
+            CASE WHEN o.id IS NOT NULL THEN CONCAT(o.first_name, ' ', o.last_name) ELSE NULL END AS "ownerName",
+            o.email AS "ownerEmail",
+            u.created_at AS "createdAt", u.updated_at AS "updatedAt"
+     FROM units u
+     LEFT JOIN owners o ON o.unit_id = u.id AND o.hoa_id = u.hoa_id
+     WHERE u.hoa_id = :hoaId AND u.id = :unitId`,
+    [param.string('hoaId', hoaId), param.string('unitId', unitId)],
+  )
+}
+
+export async function createUnit(hoaId: string, input: CreateUnitInput): Promise<UnitWithOwner> {
+  const row = await queryOne<{ id: string }>(
+    `INSERT INTO units (id, hoa_id, unit_number, address, sqft, bedrooms, bathrooms, ownership_percent)
+     VALUES (gen_random_uuid(), :hoaId, :unitNumber, :address, :sqft, :bedrooms, :bathrooms, :ownershipPercent)
+     RETURNING id`,
+    [
+      param.string('hoaId', hoaId),
+      param.string('unitNumber', input.unitNumber),
+      param.string('address', input.address ?? ''),
+      param.stringOrNull('sqft', input.sqft != null ? String(input.sqft) : null),
+      param.stringOrNull('bedrooms', input.bedrooms != null ? String(input.bedrooms) : null),
+      param.stringOrNull('bathrooms', input.bathrooms != null ? String(input.bathrooms) : null),
+      param.stringOrNull('ownershipPercent', input.ownershipPercent != null ? String(input.ownershipPercent) : null),
+    ],
+  )
+  if (!row) throw new Error('Failed to create unit')
+  return (await getUnitById(hoaId, row.id))!
+}
+
+export async function updateUnit(hoaId: string, unitId: string, input: Partial<CreateUnitInput>): Promise<UnitWithOwner | null> {
+  const setParts: string[] = []
+  const params: ReturnType<typeof param.string>[] = [
+    param.string('hoaId', hoaId),
+    param.string('unitId', unitId),
+  ]
+
+  if (input.unitNumber !== undefined) {
+    setParts.push('unit_number = :unitNumber')
+    params.push(param.string('unitNumber', input.unitNumber))
+  }
+  if (input.address !== undefined) {
+    setParts.push('address = :address')
+    params.push(param.string('address', input.address))
+  }
+  if (input.sqft !== undefined) {
+    setParts.push('sqft = :sqft')
+    params.push(param.stringOrNull('sqft', input.sqft != null ? String(input.sqft) : null))
+  }
+  if (input.bedrooms !== undefined) {
+    setParts.push('bedrooms = :bedrooms')
+    params.push(param.stringOrNull('bedrooms', input.bedrooms != null ? String(input.bedrooms) : null))
+  }
+  if (input.bathrooms !== undefined) {
+    setParts.push('bathrooms = :bathrooms')
+    params.push(param.stringOrNull('bathrooms', input.bathrooms != null ? String(input.bathrooms) : null))
+  }
+  if (input.ownershipPercent !== undefined) {
+    setParts.push('ownership_percent = :ownershipPercent')
+    params.push(param.stringOrNull('ownershipPercent', input.ownershipPercent != null ? String(input.ownershipPercent) : null))
+  }
+
+  if (setParts.length === 0) return getUnitById(hoaId, unitId)
+
+  await execute(
+    `UPDATE units SET ${setParts.join(', ')} WHERE hoa_id = :hoaId AND id = :unitId`,
+    params,
+  )
+  return getUnitById(hoaId, unitId)
+}
+
+export async function deleteUnit(hoaId: string, unitId: string): Promise<boolean> {
+  await execute(
+    `DELETE FROM units WHERE hoa_id = :hoaId AND id = :unitId`,
+    [param.string('hoaId', hoaId), param.string('unitId', unitId)],
+  )
+  return true
+}
+
+export async function importUnits(
+  hoaId: string,
+  rows: CreateUnitInput[],
+): Promise<{ created: number; skipped: number }> {
+  let created = 0
+  let skipped = 0
+
+  for (const row of rows) {
+    if (!row.unitNumber?.trim()) { skipped++; continue }
+    try {
+      await execute(
+        `INSERT INTO units (id, hoa_id, unit_number, address, sqft, bedrooms, bathrooms, ownership_percent)
+         VALUES (gen_random_uuid(), :hoaId, :unitNumber, :address, :sqft, :bedrooms, :bathrooms, :ownershipPercent)
+         ON CONFLICT (hoa_id, unit_number) DO UPDATE
+           SET address = EXCLUDED.address,
+               sqft = EXCLUDED.sqft,
+               bedrooms = EXCLUDED.bedrooms,
+               bathrooms = EXCLUDED.bathrooms,
+               ownership_percent = EXCLUDED.ownership_percent`,
+        [
+          param.string('hoaId', hoaId),
+          param.string('unitNumber', row.unitNumber),
+          param.string('address', row.address ?? ''),
+          param.stringOrNull('sqft', row.sqft != null ? String(row.sqft) : null),
+          param.stringOrNull('bedrooms', row.bedrooms != null ? String(row.bedrooms) : null),
+          param.stringOrNull('bathrooms', row.bathrooms != null ? String(row.bathrooms) : null),
+          param.stringOrNull('ownershipPercent', row.ownershipPercent != null ? String(row.ownershipPercent) : null),
+        ],
+      )
+      created++
+    } catch {
+      skipped++
+    }
+  }
+
+  return { created, skipped }
+}
+
 export async function getActivityLog(hoaId: string, limit: number, offset: number): Promise<ActivityEntry[]> {
   return query<ActivityEntry>(
     `SELECT al.id, al.hoa_id AS "hoaId", al.owner_id AS "ownerId",

@@ -325,6 +325,10 @@ export class ApiStack extends cdk.Stack {
       { id: 'DocumentDownload',      path: '/api/documents/{documentId}/download',    methods: [apigatewayv2.HttpMethod.GET],                                 fn: residentsLambda.function },
       { id: 'DocumentDelete',        path: '/api/documents/{documentId}',             methods: [apigatewayv2.HttpMethod.DELETE],                              fn: residentsLambda.function },
       { id: 'DocumentsAsk',          path: '/api/documents/ask',                      methods: [apigatewayv2.HttpMethod.POST],                                fn: residentsLambda.function },
+      // Unit management (board_admin / board_member, role-enforced in Lambda)
+      { id: 'Units',             path: '/api/units',                          methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],    fn: residentsLambda.function },
+      { id: 'UnitsImport',       path: '/api/units/import',                   methods: [apigatewayv2.HttpMethod.POST],                                fn: residentsLambda.function },
+      { id: 'UnitById',          path: '/api/units/{unitId}',                 methods: [apigatewayv2.HttpMethod.PATCH, apigatewayv2.HttpMethod.DELETE], fn: residentsLambda.function },
       // HOA-admin routes (board_admin / board_member, role-enforced in Lambda)
       { id: 'HoaStats',          path: '/api/hoa/stats',                 methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },
       { id: 'HoaMembers',        path: '/api/hoa/members',               methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },

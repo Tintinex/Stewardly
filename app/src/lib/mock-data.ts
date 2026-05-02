@@ -30,6 +30,7 @@ export const mockUnits: Unit[] = Array.from({ length: 24 }, (_, i) => ({
   sqft: 1200 + (i % 5) * 150,
   bedrooms: 2 + (i % 3),
   bathrooms: 2,
+  ownershipPercent: parseFloat((100 / 24).toFixed(3)),
   createdAt: '2023-01-15T00:00:00Z',
   updatedAt: '2023-01-15T00:00:00Z',
 }))
