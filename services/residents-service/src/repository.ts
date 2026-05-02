@@ -28,7 +28,7 @@ export interface OwnerProfile {
  *  Use this whenever uploaded_by / created_by needs a real owners FK. */
 export async function getOwnerIdByCognitoSub(hoaId: string, cognitoSub: string): Promise<string | null> {
   const row = await queryOne<{ id: string }>(
-    `SELECT id FROM owners WHERE cognito_sub = :cognitoSub AND hoa_id = :hoaId AND deleted_at IS NULL LIMIT 1`,
+    `SELECT id FROM owners WHERE cognito_sub = :cognitoSub AND hoa_id = :hoaId LIMIT 1`,
     [param.string('cognitoSub', cognitoSub), param.string('hoaId', hoaId)],
   )
   return row?.id ?? null
