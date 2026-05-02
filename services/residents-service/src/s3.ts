@@ -8,13 +8,18 @@ const KMS_KEY = process.env.KMS_KEY_ARN
 const s3 = new S3Client({ region: REGION })
 
 /** Generate a presigned PUT URL the browser can use to upload directly to S3.
- *  Expires in 5 minutes — just long enough for the user to submit. */
+ *  Expires in 5 minutes — just long enough for the user to submit.
+ *
+ *  NOTE: SSE-KMS parameters are intentionally omitted from the presigned URL.
+ *  The bucket has default encryption configured, so S3 applies KMS encryption
+ *  automatically on every PUT without requiring the browser to send SSE headers.
+ *  Including SSE params in the signed URL would require the browser to also send
+ *  matching x-amz-server-side-encryption headers, which it cannot do → 403. */
 export async function generateUploadUrl(s3Key: string, contentType: string): Promise<string> {
   const cmd = new PutObjectCommand({
     Bucket: BUCKET,
     Key: s3Key,
     ContentType: contentType,
-    ...(KMS_KEY ? { ServerSideEncryption: 'aws:kms', SSEKMSKeyId: KMS_KEY } : {}),
   })
   return getSignedUrl(s3, cmd, { expiresIn: 300 })
 }
