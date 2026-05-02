@@ -122,6 +122,83 @@ ${extractedText}`,
   }
 }
 
+// ─── Unit extraction ─────────────────────────────────────────────────────────
+
+export interface ExtractedUnitRow {
+  unitNumber: string
+  address?: string
+  ownerName?: string
+  ownerEmail?: string
+  ownerPhone?: string
+  sqft?: number
+  bedrooms?: number
+  bathrooms?: number
+  ownershipPercent?: number
+}
+
+/**
+ * Use Claude to extract unit / resident assignment data from a document's text.
+ * Returns an array of rows the caller can review and import.
+ */
+export async function extractUnitsFromDocument(
+  extractedText: string,
+): Promise<ExtractedUnitRow[]> {
+  const apiKey = await getApiKey()
+  if (!apiKey) return []
+  if (!extractedText?.trim()) return []
+
+  const client = new Anthropic({ apiKey })
+
+  try {
+    const message = await client.messages.create({
+      model: 'claude-3-5-haiku-20241022',
+      max_tokens: 4096,
+      system: `You are a data-extraction assistant for HOA management software.
+Extract structured unit and resident information from documents.
+Always return valid JSON. If a field is not present in the document, omit it from the object.`,
+      messages: [
+        {
+          role: 'user',
+          content: `Extract all unit / resident information from the HOA document below.
+
+Return ONLY a JSON array where each element is an object with these optional fields:
+- unitNumber (string, required — the unit identifier e.g. "101", "A2", "Unit 3")
+- address (string — street address of the unit if present)
+- ownerName (string — full name of the owner/resident)
+- ownerEmail (string — email address)
+- ownerPhone (string — phone number)
+- sqft (number — square footage as integer)
+- bedrooms (number — integer)
+- bathrooms (number — decimal, e.g. 1.5)
+- ownershipPercent (number — fractional ownership as decimal percentage e.g. 5.0)
+
+If you find no unit data, return an empty array [].
+Do NOT wrap the JSON in markdown code fences.
+
+Document:
+${extractedText.slice(0, 60_000)}`,
+        },
+      ],
+    })
+
+    const content = message.content[0]
+    if (content.type !== 'text') return []
+
+    // Strip optional markdown fences
+    const raw = content.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
+
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+
+    return (parsed as ExtractedUnitRow[]).filter(r =>
+      r && typeof r === 'object' && typeof r.unitNumber === 'string' && r.unitNumber.trim(),
+    )
+  } catch (err) {
+    console.error('[claude] extractUnitsFromDocument failed:', err)
+    return []
+  }
+}
+
 /**
  * Answer a resident's question using the provided HOA document context.
  */

@@ -27,4 +27,6 @@ export interface UpdateResidentInput {
   lastName?: string
   phone?: string | null
   role?: 'homeowner' | 'board_member' | 'board_admin'
+  /** unitId to assign (UUID) or null to unassign — board members only */
+  unitId?: string | null
 }

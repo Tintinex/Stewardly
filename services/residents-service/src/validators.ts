@@ -37,5 +37,7 @@ export function parseUpdateInput(raw: unknown): UpdateResidentInput | string {
     lastName: typeof b.lastName === 'string' ? b.lastName.trim() : undefined,
     phone: 'phone' in b ? (b.phone as string | null) : undefined,
     role: b.role as UpdateResidentInput['role'],
+    // unitId can be a UUID string (assign) or null (unassign) — board-only enforcement in repo
+    unitId: 'unitId' in b ? (b.unitId as string | null) : undefined,
   }
 }

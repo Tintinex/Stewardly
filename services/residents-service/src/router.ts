@@ -27,6 +27,8 @@ import {
   handleUpdateUnit,
   handleDeleteUnit,
   handleImportUnits,
+  handleListDocumentsForScan,
+  handleScanDocument,
 } from './handlers/units'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -158,6 +160,18 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   if (method === 'POST' && path.endsWith('/units/import')) {
     if (!hoaId) return r.unauthorized()
     return handleImportUnits(event.body ?? null, hoaId, role)
+  }
+
+  // POST /api/units/scan-document
+  if (method === 'POST' && path.endsWith('/units/scan-document')) {
+    if (!hoaId) return r.unauthorized()
+    return handleScanDocument(event.body ?? null, hoaId, role)
+  }
+
+  // GET /api/units/documents — list documents for scanning picker
+  if (method === 'GET' && path.endsWith('/units/documents')) {
+    if (!hoaId) return r.unauthorized()
+    return handleListDocumentsForScan(hoaId, role)
   }
 
   // GET /api/units

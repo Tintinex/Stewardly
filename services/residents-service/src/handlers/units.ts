@@ -1,5 +1,6 @@
 import * as r from '../../../shared/response'
 import * as repo from '../repository'
+import { extractUnitsFromDocument } from '../../../document-processor/src/claude'
 
 /** GET /api/units — list all units with owner info */
 export async function handleListUnits(hoaId: string, role: string): Promise<r.ApiResponse> {
@@ -153,4 +154,41 @@ export async function handleImportUnits(body: string | null, hoaId: string, role
 
   const result = await repo.importUnits(hoaId, rows)
   return r.created(result)
+}
+
+/** GET /api/units/documents — list documents available for scanning */
+export async function handleListDocumentsForScan(hoaId: string, role: string): Promise<r.ApiResponse> {
+  if (role !== 'board_admin' && role !== 'board_member') {
+    return r.forbidden('Only board members can scan documents')
+  }
+  const docs = await repo.listDocumentSummaries(hoaId)
+  return r.ok(docs)
+}
+
+/** POST /api/units/scan-document — extract unit/resident data from an uploaded document */
+export async function handleScanDocument(body: string | null, hoaId: string, role: string): Promise<r.ApiResponse> {
+  if (role !== 'board_admin' && role !== 'board_member') {
+    return r.forbidden('Only board members can scan documents')
+  }
+  if (!body) return r.badRequest('Request body is required')
+
+  let parsed: { documentId?: string }
+  try {
+    parsed = JSON.parse(body)
+  } catch {
+    return r.badRequest('Invalid JSON')
+  }
+  if (!parsed.documentId) return r.badRequest('documentId is required')
+
+  const doc = await repo.getDocumentExtractedText(hoaId, parsed.documentId)
+  if (!doc) return r.notFound('Document not found')
+  if (!doc.extractedText?.trim()) {
+    return r.badRequest(
+      'This document has no extracted text. Only PDFs and plain-text files can be scanned. ' +
+      'Try uploading a PDF version of the document.',
+    )
+  }
+
+  const units = await extractUnitsFromDocument(doc.extractedText)
+  return r.ok({ documentTitle: doc.title, unitCount: units.length, units })
 }

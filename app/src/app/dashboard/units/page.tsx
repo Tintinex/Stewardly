@@ -5,10 +5,15 @@ import { useRouter } from 'next/navigation'
 import {
   Building2, Plus, Upload, Search, Edit2, Trash2, X,
   ChevronUp, ChevronDown, AlertCircle, CheckCircle2,
-  Download, Info,
+  Download, Info, UserPlus, UserMinus, Scan, FileText,
+  Loader2, RefreshCw, Check,
 } from 'lucide-react'
-import { getCurrentUser, listUnits, createUnit, updateUnit, deleteUnit, importUnits } from '@/lib/api'
-import type { AuthUser, UnitWithOwner } from '@/types'
+import {
+  getCurrentUser, listUnits, createUnit, updateUnit, deleteUnit, importUnits,
+  getMembers, assignUnit, listDocumentsForScan, scanDocumentForUnits, importUnits as importUnitsApi,
+} from '@/lib/api'
+import type { AuthUser, UnitWithOwner, Member } from '@/types'
+import type { DocSummary, ExtractedUnitRow } from '@/lib/api'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -384,6 +389,378 @@ function ImportModal({
   )
 }
 
+// ─── Assign Resident Modal ────────────────────────────────────────────────────
+
+function AssignResidentModal({
+  unit,
+  members,
+  onAssign,
+  onUnassign,
+  onClose,
+  loading,
+  error,
+}: {
+  unit: UnitWithOwner
+  members: Member[]
+  onAssign: (memberId: string) => Promise<void>
+  onUnassign: () => Promise<void>
+  onClose: () => void
+  loading: boolean
+  error: string | null
+}) {
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<string | null>(unit.ownerId ?? null)
+
+  const filtered = members.filter(m =>
+    m.status === 'active' &&
+    (`${m.firstName} ${m.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
+     m.email.toLowerCase().includes(search.toLowerCase())),
+  )
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Assign Resident</h3>
+            <p className="text-sm text-gray-500 mt-0.5">Unit {unit.unitNumber}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+
+        <div className="p-4 space-y-3">
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+              <AlertCircle size={14} className="shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {/* Current occupant */}
+          {unit.ownerId && (
+            <div className="flex items-center justify-between rounded-lg bg-teal/5 border border-teal/30 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-gray-800">{unit.ownerName}</p>
+                <p className="text-xs text-gray-500">{unit.ownerEmail} · currently assigned</p>
+              </div>
+              <button
+                onClick={onUnassign}
+                disabled={loading}
+                className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
+              >
+                <UserMinus size={14} />
+                Unassign
+              </button>
+            </div>
+          )}
+
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              autoFocus
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search active members…"
+              className="w-full rounded-lg border border-gray-300 bg-white pl-8 pr-3 py-2 text-sm focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal"
+            />
+          </div>
+
+          <div className="max-h-64 overflow-y-auto divide-y divide-gray-100 rounded-lg border border-gray-200">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-8 text-center text-sm text-gray-400">No active members found.</p>
+            ) : filtered.map(m => (
+              <button
+                key={m.id}
+                onClick={() => setSelected(m.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors ${selected === m.id ? 'bg-teal/5' : ''}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{m.firstName} {m.lastName}</p>
+                  <p className="text-xs text-gray-500 truncate">{m.email}
+                    {m.unitNumber && <span className="ml-2 text-amber-600">· Unit {m.unitNumber}</span>}
+                  </p>
+                </div>
+                {selected === m.id && <Check size={16} className="shrink-0 text-teal" />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-xl">
+          <button onClick={onClose} disabled={loading} className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100">
+            Cancel
+          </button>
+          <button
+            onClick={() => selected && onAssign(selected)}
+            disabled={loading || !selected || selected === unit.ownerId}
+            className="rounded-lg bg-teal px-5 py-2 text-sm font-medium text-white hover:bg-teal/90 disabled:opacity-50"
+          >
+            {loading ? 'Assigning…' : 'Assign Resident'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Scan Document Modal ──────────────────────────────────────────────────────
+
+function ScanDocumentModal({
+  onClose,
+  onImport,
+}: {
+  onClose: () => void
+  onImport: (units: ExtractedUnitRow[]) => Promise<void>
+}) {
+  const [docs, setDocs] = useState<DocSummary[]>([])
+  const [docsLoading, setDocsLoading] = useState(true)
+  const [selectedDoc, setSelectedDoc] = useState<DocSummary | null>(null)
+  const [scanning, setScanning] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [scanResult, setScanResult] = useState<{ documentTitle: string; units: ExtractedUnitRow[] } | null>(null)
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [error, setError] = useState<string | null>(null)
+  const [docSearch, setDocSearch] = useState('')
+
+  useEffect(() => {
+    listDocumentsForScan()
+      .then(d => setDocs(d))
+      .catch(e => setError(e.message))
+      .finally(() => setDocsLoading(false))
+  }, [])
+
+  const handleScan = async () => {
+    if (!selectedDoc) return
+    setScanning(true)
+    setError(null)
+    setScanResult(null)
+    setSelected(new Set())
+    try {
+      const result = await scanDocumentForUnits(selectedDoc.id)
+      setScanResult(result)
+      setSelected(new Set(result.units.map((_, i) => i)))
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Scan failed')
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  const handleImport = async () => {
+    if (!scanResult) return
+    const toImport = scanResult.units.filter((_, i) => selected.has(i))
+    if (toImport.length === 0) return
+    setImporting(true)
+    try {
+      await onImport(toImport)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const toggleRow = (i: number) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(i) ? next.delete(i) : next.add(i)
+      return next
+    })
+  }
+
+  const filteredDocs = docs.filter(d =>
+    d.title.toLowerCase().includes(docSearch.toLowerCase()) ||
+    d.fileName.toLowerCase().includes(docSearch.toLowerCase()),
+  )
+
+  const CATEGORY_LABEL: Record<string, string> = {
+    bylaws: 'Bylaws', rules: 'Rules', contracts: 'Contracts',
+    notices: 'Notices', financial: 'Financial', other: 'Other',
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <Scan size={18} className="text-teal" />
+              Scan Document for Units
+            </h3>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Use AI to extract unit and resident data from an uploaded document.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-6 space-y-5">
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              <AlertCircle size={16} className="shrink-0" />{error}
+            </div>
+          )}
+
+          {/* Step 1: Pick document */}
+          {!scanResult && (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-gray-700">1. Choose a document to scan</p>
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={docSearch}
+                  onChange={e => setDocSearch(e.target.value)}
+                  placeholder="Search documents…"
+                  className="w-full rounded-lg border border-gray-300 pl-8 pr-3 py-2 text-sm focus:border-teal focus:outline-none focus:ring-1 focus:ring-teal"
+                />
+              </div>
+
+              {docsLoading ? (
+                <div className="flex items-center justify-center py-8 text-gray-400">
+                  <Loader2 size={20} className="animate-spin mr-2" /> Loading documents…
+                </div>
+              ) : filteredDocs.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">No documents found. Upload documents first.</p>
+              ) : (
+                <div className="max-h-52 overflow-y-auto divide-y divide-gray-100 rounded-lg border border-gray-200">
+                  {filteredDocs.map(doc => (
+                    <button
+                      key={doc.id}
+                      onClick={() => setSelectedDoc(doc)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors ${selectedDoc?.id === doc.id ? 'bg-teal/5 border-l-2 border-teal' : ''}`}
+                    >
+                      <FileText size={16} className={doc.hasText ? 'text-teal' : 'text-gray-300'} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{doc.title}</p>
+                        <p className="text-xs text-gray-500 truncate">{doc.fileName} · {CATEGORY_LABEL[doc.category] ?? doc.category}</p>
+                      </div>
+                      {!doc.hasText && (
+                        <span className="text-xs text-gray-400 bg-gray-100 rounded px-1.5 py-0.5 shrink-0">No text</span>
+                      )}
+                      {selectedDoc?.id === doc.id && <Check size={16} className="shrink-0 text-teal" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {selectedDoc && !selectedDoc.hasText && (
+                <div className="flex items-center gap-2 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3 text-sm text-yellow-800">
+                  <AlertCircle size={16} className="shrink-0" />
+                  This document has no extracted text. Only PDFs and plain-text files can be scanned.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 2: Scan results */}
+          {scanResult && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-700">
+                  2. Review extracted data
+                  <span className="ml-2 text-gray-400 font-normal">from "{scanResult.documentTitle}"</span>
+                </p>
+                <button
+                  onClick={() => { setScanResult(null); setSelectedDoc(null) }}
+                  className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                >
+                  <RefreshCw size={12} /> Scan another
+                </button>
+              </div>
+
+              {scanResult.units.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  <Scan size={32} className="mx-auto mb-2 text-gray-200" />
+                  <p className="text-sm">No unit data found in this document.</p>
+                  <p className="text-xs mt-1">Try a document like a resident roster, unit list, or ownership schedule.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>{selected.size} of {scanResult.units.length} rows selected</span>
+                    <button
+                      onClick={() => setSelected(
+                        selected.size === scanResult.units.length
+                          ? new Set()
+                          : new Set(scanResult.units.map((_, i) => i)),
+                      )}
+                      className="text-teal hover:underline"
+                    >
+                      {selected.size === scanResult.units.length ? 'Deselect all' : 'Select all'}
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="px-3 py-2 text-left w-8"></th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-600">Unit</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-600">Resident</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-600">Email</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-600">Details</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {scanResult.units.map((u, i) => (
+                          <tr
+                            key={i}
+                            onClick={() => toggleRow(i)}
+                            className={`cursor-pointer hover:bg-gray-50 ${selected.has(i) ? 'bg-teal/5' : ''}`}
+                          >
+                            <td className="px-3 py-2">
+                              <div className={`h-4 w-4 rounded border-2 flex items-center justify-center ${selected.has(i) ? 'bg-teal border-teal' : 'border-gray-300'}`}>
+                                {selected.has(i) && <Check size={10} className="text-white" />}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 font-semibold text-gray-800">{u.unitNumber}</td>
+                            <td className="px-3 py-2 text-gray-700">{u.ownerName ?? '—'}</td>
+                            <td className="px-3 py-2 text-gray-500">{u.ownerEmail ?? '—'}</td>
+                            <td className="px-3 py-2 text-gray-400">
+                              {[u.sqft && `${u.sqft} ft²`, u.bedrooms && `${u.bedrooms}bd`, u.bathrooms && `${u.bathrooms}ba`, u.ownershipPercent && `${u.ownershipPercent}%`].filter(Boolean).join(' · ') || '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    Units will be created or updated (upsert). Existing units with the same number will have their details overwritten.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-xl shrink-0">
+          <button onClick={onClose} disabled={scanning || importing} className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50">
+            Cancel
+          </button>
+          {!scanResult ? (
+            <button
+              onClick={handleScan}
+              disabled={!selectedDoc || !selectedDoc.hasText || scanning}
+              className="rounded-lg bg-teal px-5 py-2 text-sm font-medium text-white hover:bg-teal/90 disabled:opacity-50 flex items-center gap-2"
+            >
+              {scanning ? <><Loader2 size={14} className="animate-spin" /> Scanning…</> : <><Scan size={14} /> Scan Document</>}
+            </button>
+          ) : (
+            <button
+              onClick={handleImport}
+              disabled={importing || selected.size === 0 || !scanResult.units.length}
+              className="rounded-lg bg-teal px-5 py-2 text-sm font-medium text-white hover:bg-teal/90 disabled:opacity-50 flex items-center gap-2"
+            >
+              {importing
+                ? <><Loader2 size={14} className="animate-spin" /> Importing…</>
+                : <><CheckCircle2 size={14} /> Import {selected.size} Unit{selected.size !== 1 ? 's' : ''}</>}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Sort helpers ─────────────────────────────────────────────────────────────
 
 type SortKey = 'unitNumber' | 'address' | 'sqft' | 'ownershipPercent' | 'ownerName'
@@ -418,12 +795,18 @@ export default function UnitsPage() {
   const [editUnit, setEditUnit] = useState<UnitWithOwner | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<UnitWithOwner | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [assignTarget, setAssignTarget] = useState<UnitWithOwner | null>(null)
+  const [scanOpen, setScanOpen] = useState(false)
+
+  // Members (for assign modal)
+  const [members, setMembers] = useState<Member[]>([])
 
   // Action state
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ created: number; skipped: number } | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [assignError, setAssignError] = useState<string | null>(null)
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
@@ -549,6 +932,56 @@ export default function UnitsPage() {
     }
   }
 
+  const openAssign = async (unit: UnitWithOwner) => {
+    setAssignError(null)
+    if (members.length === 0) {
+      try {
+        const m = await getMembers()
+        setMembers(m)
+      } catch {
+        // Proceed with empty list, user sees "No active members"
+      }
+    }
+    setAssignTarget(unit)
+  }
+
+  const handleAssign = async (memberId: string) => {
+    if (!assignTarget) return
+    setSaving(true)
+    setAssignError(null)
+    try {
+      await assignUnit(memberId, assignTarget.id)
+      await load()
+      setAssignTarget(null)
+    } catch (e: unknown) {
+      setAssignError(e instanceof Error ? e.message : 'Failed to assign resident')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleUnassign = async () => {
+    if (!assignTarget) return
+    setSaving(true)
+    setAssignError(null)
+    try {
+      await assignUnit(assignTarget.ownerId!, null)
+      await load()
+      setAssignTarget(null)
+    } catch (e: unknown) {
+      setAssignError(e instanceof Error ? e.message : 'Failed to unassign resident')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleScanImport = async (rows: ExtractedUnitRow[]) => {
+    const result = await importUnitsApi({ units: rows.map(r => ({ ...r, unitNumber: r.unitNumber })) })
+    await load()
+    setScanOpen(false)
+    alert(`Imported ${result.created} units (${result.skipped} skipped).`)
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (!user) return null
@@ -570,6 +1003,13 @@ export default function UnitsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setScanOpen(true)}
+              className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <Scan size={16} />
+              Scan Document
+            </button>
             <button
               onClick={() => { setImportResult(null); setImportError(null); setImportOpen(true) }}
               className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -709,6 +1149,13 @@ export default function UnitsPage() {
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-1 justify-end">
                           <button
+                            onClick={() => openAssign(unit)}
+                            className="rounded p-1.5 text-gray-400 hover:bg-teal/10 hover:text-teal transition-colors"
+                            title={unit.ownerId ? 'Change or unassign resident' : 'Assign resident'}
+                          >
+                            {unit.ownerId ? <UserMinus size={15} /> : <UserPlus size={15} />}
+                          </button>
+                          <button
                             onClick={() => { setSaveError(null); setEditUnit(unit) }}
                             className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-teal transition-colors"
                             title="Edit unit"
@@ -793,6 +1240,23 @@ export default function UnitsPage() {
           loading={saving}
           result={importResult}
           error={importError}
+        />
+      )}
+      {assignTarget && (
+        <AssignResidentModal
+          unit={assignTarget}
+          members={members}
+          onAssign={handleAssign}
+          onUnassign={handleUnassign}
+          onClose={() => { setAssignTarget(null); setAssignError(null) }}
+          loading={saving}
+          error={assignError}
+        />
+      )}
+      {scanOpen && (
+        <ScanDocumentModal
+          onClose={() => setScanOpen(false)}
+          onImport={handleScanImport}
         />
       )}
     </div>

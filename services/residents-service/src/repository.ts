@@ -482,6 +482,11 @@ export async function updateResident(
     setParts.push('role = :role')
     params.push(param.string('role', input.role))
   }
+  // Board members and admins can assign/unassign units
+  if ('unitId' in input && (callerRole === 'board_admin' || callerRole === 'board_member')) {
+    setParts.push('unit_id = :unitId')
+    params.push(param.stringOrNull('unitId', input.unitId ?? null))
+  }
 
   await execute(
     `UPDATE owners SET ${setParts.join(', ')} WHERE id = :residentId AND hoa_id = :hoaId`,
@@ -638,6 +643,34 @@ export async function getDocumentsForQA(
     // Prefer full extracted text; fall back to AI summary for Q&A context
     text: r.extractedText ?? r.aiSummary ?? '',
   })).filter(r => r.text.trim().length > 50)
+}
+
+/** Fetch a single document's extracted text for scanning. */
+export async function getDocumentExtractedText(
+  hoaId: string,
+  documentId: string,
+): Promise<{ id: string; title: string; fileName: string; extractedText: string | null } | null> {
+  return queryOne<{ id: string; title: string; fileName: string; extractedText: string | null }>(
+    `SELECT id, title, file_name AS "fileName", extracted_text AS "extractedText"
+     FROM documents
+     WHERE id = :documentId AND hoa_id = :hoaId AND deleted_at IS NULL`,
+    [param.string('documentId', documentId), param.string('hoaId', hoaId)],
+  )
+}
+
+/** Fetch all documents (summary) for the document picker UI. */
+export async function listDocumentSummaries(
+  hoaId: string,
+): Promise<Array<{ id: string; title: string; fileName: string; category: string; hasText: boolean; createdAt: string }>> {
+  return query(
+    `SELECT id, title, file_name AS "fileName", category,
+            (extracted_text IS NOT NULL AND LENGTH(extracted_text) > 50) AS "hasText",
+            created_at AS "createdAt"
+     FROM documents
+     WHERE hoa_id = :hoaId AND deleted_at IS NULL
+     ORDER BY created_at DESC`,
+    [param.string('hoaId', hoaId)],
+  )
 }
 
 /** Fetch HOA name for the Q&A system prompt. */

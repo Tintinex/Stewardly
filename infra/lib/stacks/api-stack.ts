@@ -154,6 +154,15 @@ export class ApiStack extends cdk.Stack {
       ),
     })
 
+    // Give residents Lambda access to Anthropic secret for document scanning
+    residentsLambda.function.addEnvironment('ANTHROPIC_SECRET_ARN', anthropicSecret.secretArn)
+    residentsLambda.function.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['secretsmanager:GetSecretValue'],
+        resources: [anthropicSecret.secretArn],
+      }),
+    )
+
     // Give finances Lambda access to Plaid secret
     financesLambda.function.addEnvironment('PLAID_SECRET_ARN', plaidSecret.secretArn)
     financesLambda.function.addToRolePolicy(
@@ -328,6 +337,8 @@ export class ApiStack extends cdk.Stack {
       // Unit management (board_admin / board_member, role-enforced in Lambda)
       { id: 'Units',             path: '/api/units',                          methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],    fn: residentsLambda.function },
       { id: 'UnitsImport',       path: '/api/units/import',                   methods: [apigatewayv2.HttpMethod.POST],                                fn: residentsLambda.function },
+      { id: 'UnitsScanDocument', path: '/api/units/scan-document',            methods: [apigatewayv2.HttpMethod.POST],                                fn: residentsLambda.function },
+      { id: 'UnitsDocuments',    path: '/api/units/documents',                methods: [apigatewayv2.HttpMethod.GET],                                 fn: residentsLambda.function },
       { id: 'UnitById',          path: '/api/units/{unitId}',                 methods: [apigatewayv2.HttpMethod.PATCH, apigatewayv2.HttpMethod.DELETE], fn: residentsLambda.function },
       // HOA-admin routes (board_admin / board_member, role-enforced in Lambda)
       { id: 'HoaStats',          path: '/api/hoa/stats',                 methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },

@@ -600,3 +600,50 @@ export async function importUnits(payload: {
     body: JSON.stringify(payload),
   })
 }
+
+/** Assign a unit to a member (pass unitId=null to unassign) */
+export async function assignUnit(memberId: string, unitId: string | null): Promise<void> {
+  await apiFetch(`/api/residents/${memberId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ unitId }),
+  })
+}
+
+/** List documents available for unit scanning */
+export interface DocSummary {
+  id: string
+  title: string
+  fileName: string
+  category: string
+  hasText: boolean
+  createdAt: string
+}
+
+export async function listDocumentsForScan(): Promise<DocSummary[]> {
+  return apiFetch<DocSummary[]>('/api/units/documents')
+}
+
+export interface ExtractedUnitRow {
+  unitNumber: string
+  address?: string
+  ownerName?: string
+  ownerEmail?: string
+  ownerPhone?: string
+  sqft?: number
+  bedrooms?: number
+  bathrooms?: number
+  ownershipPercent?: number
+}
+
+export interface ScanDocumentResult {
+  documentTitle: string
+  unitCount: number
+  units: ExtractedUnitRow[]
+}
+
+export async function scanDocumentForUnits(documentId: string): Promise<ScanDocumentResult> {
+  return apiFetch<ScanDocumentResult>('/api/units/scan-document', {
+    method: 'POST',
+    body: JSON.stringify({ documentId }),
+  })
+}
