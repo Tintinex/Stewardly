@@ -277,6 +277,43 @@ export interface ExpenseCategory {
   color: string
 }
 
+// ─── Package Management ───────────────────────────────────────────────────────
+
+export type PackageStatus = 'pending' | 'picked_up' | 'returned'
+export type PackageCarrier = 'USPS' | 'FedEx' | 'UPS' | 'Amazon' | 'DHL' | 'OnTrac' | 'Other'
+
+export interface PackageRecord {
+  id: string
+  hoaId: string
+  unitId: string
+  unitNumber: string
+  ownerId: string | null
+  carrier: PackageCarrier
+  trackingNumber: string | null
+  description: string | null
+  recipientName: string | null
+  receivedAt: string
+  loggedBy: string | null
+  loggedByName: string | null
+  status: PackageStatus
+  pickedUpAt: string | null
+  pickedUpBy: string | null
+  pickedUpByName: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreatePackagePayload {
+  unitId?: string
+  unitNumber?: string
+  carrier: PackageCarrier
+  trackingNumber?: string
+  description?: string
+  recipientName?: string
+  notes?: string
+}
+
 export interface Financials {
   totalBudget: number
   ytdExpenses: number

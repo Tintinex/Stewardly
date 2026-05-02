@@ -655,3 +655,40 @@ export async function autoCategorizeTransactions(): Promise<{ updated: number }>
     method: 'POST',
   })
 }
+
+// ─── Package Management ────────────────────────────────────────────────────────
+
+import type { PackageRecord, CreatePackagePayload } from '@/types'
+
+export async function getPackages(params?: { status?: string; unitId?: string }): Promise<PackageRecord[]> {
+  const qs = new URLSearchParams()
+  if (params?.status) qs.set('status', params.status)
+  if (params?.unitId) qs.set('unitId', params.unitId)
+  const q = qs.toString() ? `?${qs}` : ''
+  return apiFetch<PackageRecord[]>(`/api/packages${q}`)
+}
+
+export async function getPendingPackageCount(): Promise<{ count: number }> {
+  return apiFetch<{ count: number }>('/api/packages/pending-count')
+}
+
+export async function createPackage(payload: CreatePackagePayload): Promise<PackageRecord> {
+  return apiFetch<PackageRecord>('/api/packages', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updatePackage(
+  packageId: string,
+  payload: { status?: string; notes?: string; trackingNumber?: string; recipientName?: string },
+): Promise<PackageRecord> {
+  return apiFetch<PackageRecord>(`/api/packages/${packageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deletePackage(packageId: string): Promise<void> {
+  return apiFetch<void>(`/api/packages/${packageId}`, { method: 'DELETE' })
+}

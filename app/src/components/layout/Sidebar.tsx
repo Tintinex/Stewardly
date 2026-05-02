@@ -5,12 +5,12 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, CheckSquare, Calendar, Users, BarChart2, MessageSquare,
-  Settings, LogOut, ShieldAlert, Home, Wrench, Megaphone, FileText, UserCheck, Building2,
+  Settings, LogOut, ShieldAlert, Home, Wrench, Megaphone, FileText, UserCheck, Building2, Package,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAuth } from '@/contexts/AuthContext'
 import { Avatar } from '@/components/ui/Avatar'
-import { getMembers } from '@/lib/api'
+import { getMembers, getPendingPackageCount } from '@/lib/api'
 
 // ── Navigation config ─────────────────────────────────────────────────────────
 
@@ -19,20 +19,22 @@ const COMMON_ITEMS = [
 ]
 
 const BOARD_ITEMS = [
-  { href: '/dashboard',           label: 'Dashboard',    icon: LayoutDashboard },
-  { href: '/dashboard/tasks',     label: 'Tasks',        icon: CheckSquare },
-  { href: '/dashboard/meetings',  label: 'Meetings',     icon: Calendar },
-  { href: '/dashboard/members',   label: 'Members',      icon: UserCheck },
-  { href: '/dashboard/residents', label: 'Residents',    icon: Users },
-  { href: '/dashboard/units',     label: 'Units',        icon: Building2 },
-  { href: '/dashboard/finances',  label: 'Finances',     icon: BarChart2 },
-  { href: '/dashboard/messages',  label: 'Messages',     icon: MessageSquare },
-  { href: '/dashboard/documents', label: 'Documents',    icon: FileText },
+  { href: '/dashboard',            label: 'Dashboard',    icon: LayoutDashboard },
+  { href: '/dashboard/tasks',      label: 'Tasks',        icon: CheckSquare },
+  { href: '/dashboard/meetings',   label: 'Meetings',     icon: Calendar },
+  { href: '/dashboard/members',    label: 'Members',      icon: UserCheck },
+  { href: '/dashboard/residents',  label: 'Residents',    icon: Users },
+  { href: '/dashboard/units',      label: 'Units',        icon: Building2 },
+  { href: '/dashboard/packages',   label: 'Packages',     icon: Package },
+  { href: '/dashboard/finances',   label: 'Finances',     icon: BarChart2 },
+  { href: '/dashboard/messages',   label: 'Messages',     icon: MessageSquare },
+  { href: '/dashboard/documents',  label: 'Documents',    icon: FileText },
 ]
 
 const HOMEOWNER_ITEMS = [
   { href: '/dashboard',                 label: 'Home',          icon: Home },
   { href: '/dashboard/my-unit',         label: 'My Unit',       icon: Home },
+  { href: '/dashboard/packages',        label: 'Packages',      icon: Package },
   { href: '/dashboard/announcements',   label: 'Announcements', icon: Megaphone },
   { href: '/dashboard/calendar',        label: 'Calendar',      icon: Calendar },
   { href: '/dashboard/messages',        label: 'Messages',      icon: MessageSquare },
@@ -51,20 +53,32 @@ interface SidebarProps {
 export function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname()
   const { user, signOut } = useAuth()
-  const [pendingCount, setPendingCount] = useState(0)
+  const [pendingMemberCount, setPendingMemberCount] = useState(0)
+  const [pendingPackageCount, setPendingPackageCount] = useState(0)
 
   const isBoard = user?.role === 'board_admin' || user?.role === 'board_member'
 
-  // Poll pending members count for board roles
+  // Poll pending members count for board admins
   useEffect(() => {
     if (!isBoard || user?.role === 'board_member') return
     const load = () => {
-      getMembers('pending').then(m => setPendingCount(m.length)).catch(() => {})
+      getMembers('pending').then(m => setPendingMemberCount(m.length)).catch(() => {})
     }
     load()
-    const interval = setInterval(load, 60000) // refresh every minute
+    const interval = setInterval(load, 60000)
     return () => clearInterval(interval)
   }, [isBoard, user?.role])
+
+  // Poll pending package count for all roles
+  useEffect(() => {
+    if (!user) return
+    const load = () => {
+      getPendingPackageCount().then(r => setPendingPackageCount(r.count)).catch(() => {})
+    }
+    load()
+    const interval = setInterval(load, 60000)
+    return () => clearInterval(interval)
+  }, [user])
 
   const baseItems = isBoard ? BOARD_ITEMS : HOMEOWNER_ITEMS
   const navItems = deduped([...baseItems, ...COMMON_ITEMS])
@@ -124,9 +138,15 @@ export function Sidebar({ onClose }: SidebarProps) {
                 <Icon className="h-4.5 w-4.5 shrink-0" size={18} />
                 <span className="flex-1">{label}</span>
                 {/* Pending badge on Members link */}
-                {href === '/dashboard/members' && pendingCount > 0 && (
+                {href === '/dashboard/members' && pendingMemberCount > 0 && (
                   <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-yellow-400 text-gray-900 text-[10px] font-bold rounded-full">
-                    {pendingCount}
+                    {pendingMemberCount}
+                  </span>
+                )}
+                {/* Pending package badge */}
+                {href === '/dashboard/packages' && pendingPackageCount > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-amber-400 text-gray-900 text-[10px] font-bold rounded-full">
+                    {pendingPackageCount}
                   </span>
                 )}
               </Link>

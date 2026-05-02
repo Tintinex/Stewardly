@@ -30,6 +30,13 @@ import {
   handleListDocumentsForScan,
   handleScanDocument,
 } from './handlers/units'
+import {
+  handleListPackages,
+  handlePendingPackageCount,
+  handleCreatePackage,
+  handleUpdatePackage,
+  handleDeletePackage,
+} from './handlers/packages'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -195,6 +202,39 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   if (unitMatch && method === 'DELETE') {
     if (!hoaId) return r.unauthorized()
     return handleDeleteUnit(hoaId, unitMatch[1], role)
+  }
+
+  // ── Packages ───────────────────────────────────────────────────────────────
+
+  // GET /api/packages/pending-count — must come before /packages catch-all
+  if (method === 'GET' && path.endsWith('/packages/pending-count')) {
+    if (!hoaId) return r.unauthorized()
+    return handlePendingPackageCount(hoaId, userId, role)
+  }
+
+  // GET /api/packages
+  if (method === 'GET' && path.endsWith('/packages')) {
+    if (!hoaId) return r.unauthorized()
+    return handleListPackages(event, hoaId, userId, role)
+  }
+
+  // POST /api/packages
+  if (method === 'POST' && path.endsWith('/packages')) {
+    if (!hoaId) return r.unauthorized()
+    return handleCreatePackage(event.body ?? null, hoaId, userId, role)
+  }
+
+  // PATCH /api/packages/:packageId
+  const packageMatch = path.match(/\/packages\/([^/]+)$/)
+  if (packageMatch && method === 'PATCH') {
+    if (!hoaId) return r.unauthorized()
+    return handleUpdatePackage(event.body ?? null, hoaId, packageMatch[1], userId, role)
+  }
+
+  // DELETE /api/packages/:packageId
+  if (packageMatch && method === 'DELETE') {
+    if (!hoaId) return r.unauthorized()
+    return handleDeletePackage(hoaId, packageMatch[1], role)
   }
 
   // Remaining routes require a valid UUID hoaId

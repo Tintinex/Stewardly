@@ -1085,6 +1085,231 @@ export async function importUnits(
   return { created, skipped }
 }
 
+export async function getUnitByNumber(hoaId: string, unitNumber: string): Promise<{ id: string } | null> {
+  return queryOne<{ id: string }>(
+    `SELECT id FROM units WHERE hoa_id = :hoaId AND unit_number = :unitNumber LIMIT 1`,
+    [param.string('hoaId', hoaId), param.string('unitNumber', unitNumber)],
+  )
+}
+
+export async function listUnitsForHoa(hoaId: string): Promise<Array<{ id: string; unitNumber: string; ownerName: string | null }>> {
+  return query<{ id: string; unitNumber: string; ownerName: string | null }>(
+    `SELECT u.id, u.unit_number AS "unitNumber",
+            CASE WHEN o.id IS NOT NULL THEN CONCAT(o.first_name, ' ', o.last_name) ELSE NULL END AS "ownerName"
+     FROM units u
+     LEFT JOIN owners o ON o.unit_id = u.id AND o.hoa_id = u.hoa_id
+     WHERE u.hoa_id = :hoaId
+     ORDER BY u.unit_number ASC`,
+    [param.string('hoaId', hoaId)],
+  )
+}
+
+// ── Packages ──────────────────────────────────────────────────────────────────
+
+export interface PackageRecord {
+  id: string
+  hoaId: string
+  unitId: string
+  unitNumber: string
+  ownerId: string | null
+  carrier: string
+  trackingNumber: string | null
+  description: string | null
+  recipientName: string | null
+  receivedAt: string
+  loggedBy: string | null
+  loggedByName: string | null
+  status: 'pending' | 'picked_up' | 'returned'
+  pickedUpAt: string | null
+  pickedUpBy: string | null
+  pickedUpByName: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export async function listPackages(filter: {
+  hoaId: string
+  status?: string | null
+  unitId?: string | null
+  ownerId?: string | null
+}): Promise<PackageRecord[]> {
+  const conditions = ['p.hoa_id = :hoaId']
+  const params: ReturnType<typeof param.string>[] = [param.string('hoaId', filter.hoaId)]
+
+  if (filter.status) {
+    conditions.push('p.status = :status')
+    params.push(param.string('status', filter.status))
+  }
+  if (filter.unitId) {
+    conditions.push('p.unit_id = :unitId')
+    params.push(param.string('unitId', filter.unitId))
+  }
+  if (filter.ownerId) {
+    // For residents: show packages for their unit (even if not assigned to their owner record)
+    conditions.push(`p.unit_id IN (SELECT unit_id FROM owners WHERE id = :ownerId AND unit_id IS NOT NULL)`)
+    params.push(param.string('ownerId', filter.ownerId))
+  }
+
+  return query<PackageRecord>(
+    `SELECT p.id, p.hoa_id AS "hoaId", p.unit_id AS "unitId",
+            u.unit_number AS "unitNumber",
+            p.owner_id AS "ownerId",
+            p.carrier, p.tracking_number AS "trackingNumber",
+            p.description, p.recipient_name AS "recipientName",
+            p.received_at AS "receivedAt",
+            p.logged_by AS "loggedBy",
+            CASE WHEN lb.id IS NOT NULL THEN CONCAT(lb.first_name, ' ', lb.last_name) ELSE NULL END AS "loggedByName",
+            p.status,
+            p.picked_up_at AS "pickedUpAt",
+            p.picked_up_by AS "pickedUpBy",
+            CASE WHEN pb.id IS NOT NULL THEN CONCAT(pb.first_name, ' ', pb.last_name) ELSE NULL END AS "pickedUpByName",
+            p.notes,
+            p.created_at AS "createdAt", p.updated_at AS "updatedAt"
+     FROM packages p
+     JOIN units u ON u.id = p.unit_id
+     LEFT JOIN owners lb ON lb.id = p.logged_by
+     LEFT JOIN owners pb ON pb.id = p.picked_up_by
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY p.received_at DESC`,
+    params,
+  )
+}
+
+export async function getPackageById(packageId: string, hoaId: string): Promise<PackageRecord | null> {
+  return queryOne<PackageRecord>(
+    `SELECT p.id, p.hoa_id AS "hoaId", p.unit_id AS "unitId",
+            u.unit_number AS "unitNumber",
+            p.owner_id AS "ownerId",
+            p.carrier, p.tracking_number AS "trackingNumber",
+            p.description, p.recipient_name AS "recipientName",
+            p.received_at AS "receivedAt",
+            p.logged_by AS "loggedBy",
+            CASE WHEN lb.id IS NOT NULL THEN CONCAT(lb.first_name, ' ', lb.last_name) ELSE NULL END AS "loggedByName",
+            p.status,
+            p.picked_up_at AS "pickedUpAt",
+            p.picked_up_by AS "pickedUpBy",
+            CASE WHEN pb.id IS NOT NULL THEN CONCAT(pb.first_name, ' ', pb.last_name) ELSE NULL END AS "pickedUpByName",
+            p.notes,
+            p.created_at AS "createdAt", p.updated_at AS "updatedAt"
+     FROM packages p
+     JOIN units u ON u.id = p.unit_id
+     LEFT JOIN owners lb ON lb.id = p.logged_by
+     LEFT JOIN owners pb ON pb.id = p.picked_up_by
+     WHERE p.id = :packageId AND p.hoa_id = :hoaId`,
+    [param.string('packageId', packageId), param.string('hoaId', hoaId)],
+  )
+}
+
+export async function createPackage(input: {
+  hoaId: string
+  unitId: string
+  carrier: string
+  trackingNumber: string | null
+  description: string | null
+  recipientName: string | null
+  loggedBy: string | null
+  notes: string | null
+}): Promise<PackageRecord> {
+  const row = await queryOne<{ id: string }>(
+    `INSERT INTO packages
+       (id, hoa_id, unit_id, carrier, tracking_number, description, recipient_name, logged_by, notes,
+        received_at, status, created_at, updated_at)
+     VALUES
+       (gen_random_uuid(), :hoaId, :unitId, :carrier, :trackingNumber, :description, :recipientName,
+        :loggedBy, :notes, NOW(), 'pending', NOW(), NOW())
+     RETURNING id`,
+    [
+      param.string('hoaId', input.hoaId),
+      param.string('unitId', input.unitId),
+      param.string('carrier', input.carrier),
+      param.stringOrNull('trackingNumber', input.trackingNumber),
+      param.stringOrNull('description', input.description),
+      param.stringOrNull('recipientName', input.recipientName),
+      param.stringOrNull('loggedBy', input.loggedBy),
+      param.stringOrNull('notes', input.notes),
+    ],
+  )
+  if (!row) throw new Error('Failed to create package record')
+  return (await getPackageById(row.id, input.hoaId))!
+}
+
+export async function updatePackage(
+  packageId: string,
+  hoaId: string,
+  updates: {
+    status?: string
+    notes?: string
+    trackingNumber?: string
+    recipientName?: string
+    pickedUpBy?: string
+  },
+): Promise<PackageRecord | null> {
+  const setParts: string[] = ['updated_at = NOW()']
+  const params: ReturnType<typeof param.string>[] = [
+    param.string('packageId', packageId),
+    param.string('hoaId', hoaId),
+  ]
+
+  if (updates.status !== undefined) {
+    setParts.push('status = :status')
+    params.push(param.string('status', updates.status))
+    if (updates.status === 'picked_up') {
+      setParts.push('picked_up_at = NOW()')
+    }
+  }
+  if (updates.pickedUpBy !== undefined) {
+    setParts.push('picked_up_by = :pickedUpBy')
+    params.push(param.stringOrNull('pickedUpBy', updates.pickedUpBy))
+  }
+  if (updates.notes !== undefined) {
+    setParts.push('notes = :notes')
+    params.push(param.stringOrNull('notes', updates.notes))
+  }
+  if (updates.trackingNumber !== undefined) {
+    setParts.push('tracking_number = :trackingNumber')
+    params.push(param.stringOrNull('trackingNumber', updates.trackingNumber))
+  }
+  if (updates.recipientName !== undefined) {
+    setParts.push('recipient_name = :recipientName')
+    params.push(param.stringOrNull('recipientName', updates.recipientName))
+  }
+
+  await execute(
+    `UPDATE packages SET ${setParts.join(', ')} WHERE id = :packageId AND hoa_id = :hoaId`,
+    params,
+  )
+  return getPackageById(packageId, hoaId)
+}
+
+export async function deletePackage(packageId: string, hoaId: string): Promise<void> {
+  await execute(
+    `DELETE FROM packages WHERE id = :packageId AND hoa_id = :hoaId`,
+    [param.string('packageId', packageId), param.string('hoaId', hoaId)],
+  )
+}
+
+export async function getPendingPackageCount(filter: {
+  hoaId: string
+  ownerId?: string
+}): Promise<number> {
+  let sql: string
+  let params: ReturnType<typeof param.string>[]
+
+  if (filter.ownerId) {
+    sql = `SELECT COUNT(*)::int AS count FROM packages p
+           WHERE p.hoa_id = :hoaId AND p.status = 'pending'
+             AND p.unit_id IN (SELECT unit_id FROM owners WHERE id = :ownerId AND unit_id IS NOT NULL)`
+    params = [param.string('hoaId', filter.hoaId), param.string('ownerId', filter.ownerId)]
+  } else {
+    sql = `SELECT COUNT(*)::int AS count FROM packages WHERE hoa_id = :hoaId AND status = 'pending'`
+    params = [param.string('hoaId', filter.hoaId)]
+  }
+
+  const row = await queryOne<{ count: number }>(sql, params)
+  return row?.count ?? 0
+}
+
 export async function getActivityLog(hoaId: string, limit: number, offset: number): Promise<ActivityEntry[]> {
   return query<ActivityEntry>(
     `SELECT al.id, al.hoa_id AS "hoaId", al.owner_id AS "ownerId",

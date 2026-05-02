@@ -352,6 +352,10 @@ export class ApiStack extends cdk.Stack {
       { id: 'HoaMemberStatus',   path: '/api/hoa/members/{memberId}/status', methods: [apigatewayv2.HttpMethod.PATCH],                               fn: residentsLambda.function },
       { id: 'HoaInviteCode',     path: '/api/hoa/invite-code',           methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],       fn: residentsLambda.function },
       { id: 'HoaActivity',       path: '/api/hoa/activity',              methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },
+      // Package management
+      { id: 'PackagesPendingCount', path: '/api/packages/pending-count',  methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },
+      { id: 'Packages',             path: '/api/packages',                methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST],        fn: residentsLambda.function },
+      { id: 'PackageById',          path: '/api/packages/{packageId}',    methods: [apigatewayv2.HttpMethod.PATCH, apigatewayv2.HttpMethod.DELETE],    fn: residentsLambda.function },
       // Admin routes — superadmin role enforced in the Lambda itself
       { id: 'AdminDashboard',         path: '/api/admin/dashboard',                          methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
       { id: 'AdminHoas',              path: '/api/admin/hoas',                               methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },

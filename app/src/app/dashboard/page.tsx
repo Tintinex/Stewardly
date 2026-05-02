@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
   Home, CheckSquare, DollarSign, TrendingUp, Calendar, MessageSquare,
-  Wrench, Megaphone, FileText, ArrowRight, Clock, CheckCircle, AlertCircle,
+  Wrench, Megaphone, FileText, ArrowRight, Clock, CheckCircle, AlertCircle, Package,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -49,6 +49,7 @@ function HomeownerDashboard() {
   const { user, hoaId, isLoading: authLoading } = useAuth()
   const [unitData, setUnitData] = useState<MyUnitData | null>(null)
   const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [pendingPackages, setPendingPackages] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -57,9 +58,11 @@ function HomeownerDashboard() {
     Promise.all([
       api.getMyUnit().catch(() => null),
       api.getMeetings(hoaId).catch(() => [] as Meeting[]),
-    ]).then(([unit, mtgs]) => {
+      api.getPendingPackageCount().catch(() => ({ count: 0 })),
+    ]).then(([unit, mtgs, pkgs]) => {
       setUnitData(unit)
       setMeetings(mtgs.filter(m => m.status === 'scheduled' && new Date(m.scheduledAt) > new Date()))
+      setPendingPackages(pkgs.count)
     }).finally(() => setIsLoading(false))
   }, [authLoading, hoaId])
 
@@ -94,6 +97,15 @@ function HomeownerDashboard() {
       </div>
 
       {/* Status alerts */}
+      {pendingPackages > 0 && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 flex items-center gap-3">
+          <Package className="h-5 w-5 text-amber-500 shrink-0" />
+          <p className="text-sm text-amber-800">
+            You have <strong>{pendingPackages} package{pendingPackages > 1 ? 's' : ''}</strong> waiting at the front desk.{' '}
+            <Link href="/dashboard/packages" className="font-medium underline">View packages →</Link>
+          </p>
+        </div>
+      )}
       {overdueCount > 0 && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 flex items-center gap-3">
           <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
