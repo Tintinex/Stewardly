@@ -6,7 +6,7 @@ import {
   CheckCircle, AlertCircle, Clock, Trash2, Edit2, ChevronDown,
   BarChart2, FileText, CreditCard, Users, Lightbulb, ArrowUpRight,
   ArrowDownRight, RefreshCw, Building, Filter, Search, AlertTriangle,
-  Check, TrendingDown, Link, Unlink, WifiOff,
+  Check, TrendingDown, Link, Unlink, WifiOff, Sparkles,
 } from 'lucide-react'
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis,
@@ -67,6 +67,31 @@ const CATEGORIES = [
 
 const ACCOUNT_TYPES = ['checking', 'savings', 'money_market', 'other']
 
+// Client-side category inference (mirrors backend categorize.ts)
+const CATEGORY_RULES_CLIENT: Array<[RegExp, string]> = [
+  [/\breserve\s+(fund|transfer|deposit|contribution|account)\b|\bcapital\s+reserve\b/i, 'Reserves'],
+  [/\bhoa\s+(dues|fee)\b|\bdues\s+collection\b|\bassessment\s+fee\b|\bcollection\s+fee\b|\bmonthly\s+dues\b/i, 'Dues Collection'],
+  [/\bwater\s*(bill|dept|district|service|utility|co\b)|\belectric(ity)?\b|\b(natural\s+)?gas\s*(co\b|company|bill|utility)|\bsewer\b|\btrash\b|\bgarbage\b|\brecycl/i, 'Utilities'],
+  [/\bpg&?e\b|\bfpl\b|\bedison\b|\butil(ity|ities)\b|\benergy\s+(company|service|bill)\b/i, 'Utilities'],
+  [/\blandscap|\blawn\s*(care|service|maint)?\b|\bgarden(ing)?\b|\bmowing\b|\bgrass\b|\btree\s*(trim|service|removal)?\b|\bshrub\b|\birrigation\b|\bsprinkler\b|\bfertiliz\b|\bmulch\b|\bweed(ing)?\b/i, 'Landscaping'],
+  [/\binsurance\b|\bins\s+premium\b|\bcoverage\s+premium\b/i, 'Insurance'],
+  [/\bsecurity\s*(patrol|service|guard|system|monitor)?\b|\badt\b|\bguard\s+service\b|\bsurveillance\b|\balarm\s*(system|service)?\b/i, 'Security'],
+  [/\battorne(y|ys)\b|\blaw\s+(firm|office|group)\b|\blegal\s+(fee|service)\b|\blitigation\b|\bnotary\b/i, 'Legal'],
+  [/\bmanagement\s+(fee|co|company|service)\b|\bproperty\s+mgmt\b|\bproperty\s+management\b|\bassociation\s+mgmt\b|\bfirstservice\b/i, 'Management'],
+  [/\bpool\s*(service|maintenance|cleaning)?\b|\bgym\b|\bfitness\s*(center|equipment)?\b|\bclub\s*house\b|\btennis\b|\bplayground\b|\brecreation\b/i, 'Amenities'],
+  [/\bcapital\s+improve|\brenovation\b|\bremodel(ing)?\b|\bconstruction\b|\bpaving\b/i, 'Capital Improvements'],
+  [/\brepair\b|\bmaint(enance)?\b|\bplumb(ing|er)?\b|\bhvac\b|\bheat(ing)?\b|\bcool(ing)?\b|\belevator\b|\broof(ing)?\b|\bpainting\b|\bcleaning\s+service\b|\bjanitorial\b|\bpest\s+control\b|\bhandyman\b/i, 'Maintenance'],
+  [/\boffice\s+supplies\b|\bpostage\b|\bprint(ing)?\b|\bbank\s+(fee|charge)\b|\baccounting\b|\baudit\b|\btax\s+(prep|return|service)\b/i, 'Administrative'],
+]
+
+function guessCategory(description: string, vendor?: string): string {
+  const text = `${description} ${vendor ?? ''}`.trim()
+  for (const [pattern, cat] of CATEGORY_RULES_CLIENT) {
+    if (pattern.test(text)) return cat
+  }
+  return 'Other'
+}
+
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   pending:  { label: 'Pending',  cls: 'bg-amber-100 text-amber-700' },
   paid:     { label: 'Paid',     cls: 'bg-green-100 text-green-700' },
@@ -97,6 +122,7 @@ export default function FinancesPage() {
   const [error, setError] = useState<string | null>(null)
   const [syncingItemId, setSyncingItemId] = useState<string | null>(null)
   const [syncResult, setSyncResult] = useState<{ itemId: string; added: number; modified: number } | null>(null)
+  const [autoCategorizing, setAutoCategorizing] = useState(false)
 
   // Filters
   const [txnSearch, setTxnSearch] = useState('')
@@ -188,6 +214,23 @@ export default function FinancesPage() {
   useEffect(() => {
     if (tab === 'assessments') loadAssessments()
   }, [assessStatus, tab, loadAssessments])
+
+  const handleAutoCategorize = async () => {
+    setAutoCategorizing(true)
+    try {
+      const result = await apiFetch<{ updated: number }>('/api/finances/transactions/auto-categorize', { method: 'POST' })
+      await Promise.all([loadTransactions(), loadSummary(), loadBudget()])
+      if (result.updated === 0) {
+        alert('All transactions are already categorized.')
+      } else {
+        alert(`Auto-categorized ${result.updated} transaction${result.updated !== 1 ? 's' : ''}. Budget actuals updated.`)
+      }
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setAutoCategorizing(false)
+    }
+  }
 
   if (authLoading || loading) {
     return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>
@@ -573,6 +616,18 @@ export default function FinancesPage() {
               <option value="credit">Income</option>
             </select>
             <Button variant="ghost" size="sm" onClick={loadTransactions}><RefreshCw className="h-3.5 w-3.5" /></Button>
+            {isBoard && (
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<Sparkles className="h-3.5 w-3.5" />}
+                isLoading={autoCategorizing}
+                onClick={handleAutoCategorize}
+                title="Auto-categorize uncategorized transactions based on description keywords"
+              >
+                Auto-categorize
+              </Button>
+            )}
           </div>
 
           <Card>
@@ -989,7 +1044,8 @@ export default function FinancesPage() {
           onSave={async data => {
             await apiFetch(`/api/finances/transactions/${editTxn.id}`, { method: 'PATCH', body: JSON.stringify(data) })
             setEditTxn(null)
-            loadTransactions()
+            // Reload transactions + summary/budget so Budget vs. Actual updates immediately
+            await Promise.all([loadTransactions(), loadSummary(), loadBudget()])
           }}
         />
       )}
@@ -1167,8 +1223,20 @@ function AddTransactionModal({ isOpen, accounts, onClose, onSave }: {
   const [form, setForm] = useState({ accountId: '', amount: '', description: '', vendor: '', category: 'Other', date: new Date().toISOString().split('T')[0], type: 'debit' as 'debit' | 'credit', notes: '' })
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+  // Track whether the user has manually chosen a category
+  const [categoryTouched, setCategoryTouched] = useState(false)
 
-  const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+  const set = (k: string, v: string) => {
+    setForm(f => {
+      const next = { ...f, [k]: v }
+      // Auto-suggest category from description/vendor while user hasn't manually chosen one
+      if ((k === 'description' || k === 'vendor') && !categoryTouched) {
+        const suggested = guessCategory(next.description, next.vendor)
+        return { ...next, category: suggested }
+      }
+      return next
+    })
+  }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Add Transaction" size="md">
@@ -1202,8 +1270,19 @@ function AddTransactionModal({ isOpen, accounts, onClose, onSave }: {
             <Input placeholder="e.g. City Water Dept" value={form.vendor} onChange={e => set('vendor', e.target.value)} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Category *</label>
-            <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" value={form.category} onChange={e => set('category', e.target.value)}>
+            <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
+              Category *
+              {!categoryTouched && form.category !== 'Other' && (
+                <span className="text-teal text-xs font-normal flex items-center gap-0.5">
+                  <Sparkles className="h-3 w-3" /> suggested
+                </span>
+              )}
+            </label>
+            <select
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              value={form.category}
+              onChange={e => { setCategoryTouched(true); set('category', e.target.value) }}
+            >
               {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
@@ -1246,7 +1325,11 @@ function EditTransactionModal({ txn, isOpen, onClose, onSave }: {
 }) {
   const [form, setForm] = useState({ description: txn.description, vendor: txn.vendor ?? '', category: txn.category, notes: txn.notes ?? '' })
   const [saving, setSaving] = useState(false)
+
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+
+  const suggestedCategory = guessCategory(form.description, form.vendor)
+  const hasSuggestion = suggestedCategory !== 'Other' && suggestedCategory !== form.category
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Edit Transaction" size="sm">
@@ -1260,7 +1343,19 @@ function EditTransactionModal({ txn, isOpen, onClose, onSave }: {
           <Input value={form.vendor} onChange={e => set('vendor', e.target.value)} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs font-medium text-gray-700">Category</label>
+            {hasSuggestion && (
+              <button
+                type="button"
+                onClick={() => set('category', suggestedCategory)}
+                className="flex items-center gap-1 text-xs text-teal hover:underline"
+              >
+                <Sparkles className="h-3 w-3" />
+                Use &ldquo;{suggestedCategory}&rdquo;
+              </button>
+            )}
+          </div>
           <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" value={form.category} onChange={e => set('category', e.target.value)}>
             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>

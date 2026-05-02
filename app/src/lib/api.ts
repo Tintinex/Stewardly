@@ -647,3 +647,11 @@ export async function scanDocumentForUnits(documentId: string): Promise<ScanDocu
     body: JSON.stringify({ documentId }),
   })
 }
+
+// ─── Finance: Auto-categorize ─────────────────────────────────────────────────
+
+export async function autoCategorizeTransactions(): Promise<{ updated: number }> {
+  return apiFetch<{ updated: number }>('/api/finances/transactions/auto-categorize', {
+    method: 'POST',
+  })
+}

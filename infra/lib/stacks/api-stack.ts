@@ -324,6 +324,7 @@ export class ApiStack extends cdk.Stack {
       { id: 'FinancesPlaidItems',         path: '/api/finances/plaid/items',                         methods: [apigatewayv2.HttpMethod.GET],                                                         fn: financesLambda.function },
       { id: 'FinancesPlaidItemById',      path: '/api/finances/plaid/items/{itemId}',                methods: [apigatewayv2.HttpMethod.DELETE],                                                      fn: financesLambda.function },
       { id: 'FinancesPlaidSync',          path: '/api/finances/plaid/sync/{itemId}',                 methods: [apigatewayv2.HttpMethod.POST],                                                        fn: financesLambda.function },
+      { id: 'FinancesTxnAutoCategorize', path: '/api/finances/transactions/auto-categorize',        methods: [apigatewayv2.HttpMethod.POST],                                                        fn: financesLambda.function },
       // Resident-facing routes
       { id: 'EnsureOwner',       path: '/api/residents/me',              methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST, apigatewayv2.HttpMethod.PATCH], fn: residentsLambda.function },
       { id: 'MyUnit',            path: '/api/my-unit',                   methods: [apigatewayv2.HttpMethod.GET],                                     fn: residentsLambda.function },

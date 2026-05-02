@@ -5,6 +5,7 @@ import type {
   CreateBudgetInput, CreateTransactionInput, CreateAccountInput,
   CreateAssessmentInput, PlaidItemRecord, PlaidItemPublic, PlaidSyncResult,
 } from './types'
+import { inferCategory } from './categorize'
 
 const CHART_COLORS = ['#0C1F3F', '#0D9E8A', '#F5A623', '#3DBDAE', '#4D729A', '#64CBBF', '#9DAFC9', '#C6D0E4']
 
@@ -173,6 +174,39 @@ export async function approveBudget(hoaId: string, budgetId: string): Promise<vo
   )
 }
 
+/** Sync budget actuals for the current fiscal year — exported for use after batch operations */
+export async function syncCurrentYearBudgetActuals(hoaId: string): Promise<void> {
+  const currentYear = new Date().getFullYear()
+  const budget = await queryOne<{ id: string }>(
+    `SELECT id FROM budgets WHERE hoa_id = :hoaId AND fiscal_year = :year ORDER BY created_at DESC LIMIT 1`,
+    [param.string('hoaId', hoaId), param.int('year', currentYear)],
+  )
+  if (budget) await syncBudgetActuals(hoaId, budget.id, currentYear)
+}
+
+/** Re-categorize all 'Other' transactions using keyword inference; syncs budget actuals afterwards */
+export async function autoCategorizeTransactions(hoaId: string): Promise<number> {
+  const rows = await query<{ id: string; description: string; vendor: string | null }>(
+    `SELECT id, description, vendor FROM transactions WHERE hoa_id = :hoaId AND (category = 'Other' OR category IS NULL OR category = '')`,
+    [param.string('hoaId', hoaId)],
+  )
+
+  let updated = 0
+  for (const row of rows) {
+    const category = inferCategory(row.description, row.vendor)
+    if (category !== 'Other') {
+      await execute(
+        `UPDATE transactions SET category = :category, updated_at = NOW() WHERE id = :id`,
+        [param.string('category', category), param.string('id', row.id)],
+      )
+      updated++
+    }
+  }
+
+  if (updated > 0) await syncCurrentYearBudgetActuals(hoaId)
+  return updated
+}
+
 /** Sync actual_amount on budget line items from transactions */
 async function syncBudgetActuals(hoaId: string, budgetId: string, fiscalYear: number): Promise<void> {
   await execute(
@@ -306,6 +340,23 @@ export async function updateTransaction(
     `UPDATE transactions SET ${sets.join(', ')} WHERE id = :id AND hoa_id = :hoaId`,
     params,
   )
+
+  // Re-sync budget actuals whenever the category changes (budget line items group by category)
+  if (updates.category !== undefined) {
+    const txn = await queryOne<{ date: string }>(
+      `SELECT date FROM transactions WHERE id = :id AND hoa_id = :hoaId`,
+      [param.string('id', transactionId), param.string('hoaId', hoaId)],
+    )
+    if (txn) {
+      const fiscalYear = new Date(txn.date).getFullYear()
+      const budget = await queryOne<{ id: string }>(
+        `SELECT id FROM budgets WHERE hoa_id = :hoaId AND fiscal_year = :year ORDER BY created_at DESC LIMIT 1`,
+        [param.string('hoaId', hoaId), param.int('year', fiscalYear)],
+      )
+      if (budget) await syncBudgetActuals(hoaId, budget.id, fiscalYear)
+    }
+  }
+
   return getTransactionById(hoaId, transactionId)
 }
 

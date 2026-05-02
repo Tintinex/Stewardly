@@ -9,6 +9,7 @@ import { handleCreateTransaction } from './handlers/create-transaction'
 import { handleUpdateTransaction } from './handlers/update-transaction'
 import { handleDeleteTransaction } from './handlers/delete-transaction'
 import { handleImportTransactions } from './handlers/import-transactions'
+import { handleAutoCategorize } from './handlers/auto-categorize'
 import { handleListAccounts } from './handlers/list-accounts'
 import { handleCreateAccount } from './handlers/create-account'
 import { handleUpdateAccount } from './handlers/update-account'
@@ -44,9 +45,10 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   if (budgetApproveMatch && method === 'POST') return handleApproveBudget(budgetApproveMatch[1], hoaId, role)
 
   // ── Transactions ──────────────────────────────────────────────────────────────
-  if (method === 'GET'  && path.endsWith('/finances/transactions'))          return handleListTransactions(event, hoaId)
-  if (method === 'POST' && path.endsWith('/finances/transactions'))          return handleCreateTransaction(event.body ?? null, hoaId, role)
-  if (method === 'POST' && path.endsWith('/finances/transactions/import'))   return handleImportTransactions(event.body ?? null, hoaId, role)
+  if (method === 'GET'  && path.endsWith('/finances/transactions'))                  return handleListTransactions(event, hoaId)
+  if (method === 'POST' && path.endsWith('/finances/transactions'))                  return handleCreateTransaction(event.body ?? null, hoaId, role)
+  if (method === 'POST' && path.endsWith('/finances/transactions/import'))           return handleImportTransactions(event.body ?? null, hoaId, role)
+  if (method === 'POST' && path.endsWith('/finances/transactions/auto-categorize'))  return handleAutoCategorize(hoaId, role)
 
   const txnMatch = path.match(/\/finances\/transactions\/([^/]+)$/)
   if (txnMatch && method === 'PATCH')  return handleUpdateTransaction(event.body ?? null, hoaId, txnMatch[1], role)

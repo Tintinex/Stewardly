@@ -1,5 +1,6 @@
 import * as r from '../../../shared/response'
 import * as repo from '../repository'
+import { inferCategory } from '../categorize'
 
 /**
  * POST /api/finances/transactions/import
@@ -72,8 +73,12 @@ export async function handleImportTransactions(body: string | null, hoaId: strin
       else if (t === 'credit' || t === 'cr' || t === 'income') type = 'credit'
     }
 
-    const category = (categoryIdx !== -1 ? cols[categoryIdx]?.trim() : undefined) || 'Other'
     const vendor = vendorIdx !== -1 ? cols[vendorIdx]?.trim() || null : null
+    const rawCategory = categoryIdx !== -1 ? cols[categoryIdx]?.trim() : ''
+    // Auto-infer category from description/vendor when not specified or left as 'Other'
+    const category = (rawCategory && rawCategory !== 'Other')
+      ? rawCategory
+      : inferCategory(description || '', vendor)
     const notes = notesIdx !== -1 ? cols[notesIdx]?.trim() || null : null
 
     // Normalize date

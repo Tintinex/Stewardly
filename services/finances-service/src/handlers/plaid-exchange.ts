@@ -1,6 +1,7 @@
 import * as r from '../../../shared/response'
 import * as repo from '../repository'
 import { getPlaidClient, mapPlaidCategory } from '../plaid-client'
+import { inferCategory } from '../categorize'
 import type { PlaidAccountInput } from '../repository'
 
 /** POST /api/finances/plaid/exchange
@@ -159,13 +160,19 @@ export async function syncTransactions(
       const type = txn.amount > 0 ? 'debit' : 'credit'
       const amount = Math.abs(txn.amount)
 
+      // Use Plaid's category first; fall back to keyword inference when it can't determine one
+      const plaidCat = mapPlaidCategory(txn.category)
+      const category = plaidCat === 'Other'
+        ? inferCategory(txn.name, txn.merchant_name)
+        : plaidCat
+
       toUpsert.push({
         plaidTxnId: txn.transaction_id,
         accountId: acct.id,
         amount,
         description: txn.name,
         vendor: txn.merchant_name ?? null,
-        category: mapPlaidCategory(txn.category),
+        category,
         date: txn.date,
         type,
       })
@@ -185,6 +192,11 @@ export async function syncTransactions(
 
     currentCursor = next_cursor
     hasMore = has_more
+  }
+
+  // Sync budget actuals once after all pages are processed
+  if (totalAdded + totalModified + totalRemoved > 0) {
+    await repo.syncCurrentYearBudgetActuals(hoaId)
   }
 
   return { added: totalAdded, modified: totalModified, removed: totalRemoved, nextCursor: currentCursor ?? '' }
