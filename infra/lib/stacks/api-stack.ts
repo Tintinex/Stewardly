@@ -127,6 +127,11 @@ export class ApiStack extends cdk.Stack {
           ],
           resources: ['*'],
         }),
+        new iam.PolicyStatement({
+          // Cost Explorer is a global service — no resource-level restriction supported
+          actions: ['ce:GetCostAndUsage'],
+          resources: ['*'],
+        }),
       ],
     })
 
@@ -367,6 +372,7 @@ export class ApiStack extends cdk.Stack {
       { id: 'AdminSubscriptionById',  path: '/api/admin/subscriptions/{hoaId}',              methods: [apigatewayv2.HttpMethod.PATCH],                                    fn: adminLambda.function },
       { id: 'AdminExtendTrial',       path: '/api/admin/subscriptions/{hoaId}/extend-trial', methods: [apigatewayv2.HttpMethod.POST],                                     fn: adminLambda.function },
       { id: 'AdminActivity',          path: '/api/admin/activity',                           methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
+      { id: 'AdminCosts',             path: '/api/admin/costs',                              methods: [apigatewayv2.HttpMethod.GET],                                      fn: adminLambda.function },
     ]
 
     for (const route of protectedRoutes) {

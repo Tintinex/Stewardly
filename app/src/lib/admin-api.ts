@@ -4,7 +4,7 @@ import type {
   HoaSummary, HoaDetail, AdminUserRecord,
   PlatformStats, MonitoringData, BillingOverview,
   AdminDashboardData, SubscriptionsData, ActivityData,
-  HoaHealth, InviteCodeData,
+  HoaHealth, InviteCodeData, PlatformCosts,
 } from '@/types/admin'
 
 async function adminFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -134,6 +134,12 @@ export async function extendTrial(hoaId: string, days: number): Promise<void> {
     method: 'POST',
     body: JSON.stringify({ days }),
   })
+}
+
+// ── Platform Costs ────────────────────────────────────────────────────────────
+
+export async function getPlatformCosts(): Promise<PlatformCosts> {
+  return adminFetch<PlatformCosts>('/api/admin/costs')
 }
 
 // ── Activity ──────────────────────────────────────────────────────────────────

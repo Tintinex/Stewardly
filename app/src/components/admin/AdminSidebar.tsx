@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import clsx from 'clsx'
 import {
   LayoutDashboard, Building2, Users, CreditCard,
-  BarChart2, Activity, Server, LogOut,
+  BarChart2, Activity, Server, LogOut, Receipt,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Avatar } from '@/components/ui/Avatar'
@@ -18,6 +18,7 @@ const navItems = [
   { href: '/admin/stats',         label: 'Statistics',     icon: BarChart2 },
   { href: '/admin/activity',      label: 'Activity Log',   icon: Activity },
   { href: '/admin/monitoring',    label: 'Monitoring',     icon: Server },
+  { href: '/admin/costs',         label: 'Costs',          icon: Receipt },
 ]
 
 export function AdminSidebar() {

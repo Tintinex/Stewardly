@@ -149,6 +149,35 @@ export interface AuditLogEntry {
   createdAt: string
 }
 
+// ── Platform Costs ───────────────────────────────────────────────────────────
+
+export interface CostLineItem {
+  name:      string
+  category:  string
+  amountUsd: number
+  source:    'aws_cost_explorer' | 'estimated' | 'fixed'
+  note?:     string
+}
+
+export interface PlatformCosts {
+  currentMonth: {
+    awsTotal:      number
+    externalTotal: number
+    total:         number
+  }
+  byService: CostLineItem[]
+  monthlyTrend: Array<{ month: string; awsCost: number }>
+  unitEconomics: {
+    costPerHoa:  number
+    costPerUser: number
+    activeHoas:  number
+    totalUsers:  number
+  }
+  /** false when Cost Explorer is unavailable (insufficient IAM permissions or first deploy) */
+  awsCostExplorerAvailable: boolean
+  collectedAt: string
+}
+
 export interface ActivityData {
   entries: AuditLogEntry[]
   total: number

@@ -152,6 +152,34 @@ export interface SubscriptionsData {
   subscriptions: SubscriptionRecord[]
 }
 
+// ── Platform Costs ────────────────────────────────────────────────────────────
+
+export interface CostLineItem {
+  name:      string
+  category:  string
+  amountUsd: number
+  source:    'aws_cost_explorer' | 'estimated' | 'fixed'
+  note?:     string
+}
+
+export interface PlatformCosts {
+  currentMonth: {
+    awsTotal:      number
+    externalTotal: number
+    total:         number
+  }
+  byService: CostLineItem[]
+  monthlyTrend: Array<{ month: string; awsCost: number }>
+  unitEconomics: {
+    costPerHoa:  number
+    costPerUser: number
+    activeHoas:  number
+    totalUsers:  number
+  }
+  awsCostExplorerAvailable: boolean
+  collectedAt: string
+}
+
 // ── Activity ──────────────────────────────────────────────────────────────────
 
 export interface AuditLogEntry {

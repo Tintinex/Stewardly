@@ -11,6 +11,7 @@ import { handleGetSubscriptions, handleUpdateSubscription, handleExtendTrial } f
 import { handleActivity } from './handlers/activity'
 import { handleGetInviteCode, handleRotateInviteCode } from './handlers/invite-code'
 import { handleCreateHoaAdmin } from './handlers/create-hoa-admin'
+import { handleGetCosts } from './handlers/costs'
 
 export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
   const { role, userId } = event.requestContext.authorizer.lambda
@@ -99,6 +100,9 @@ export async function route(event: LambdaEvent): Promise<r.ApiResponse> {
 
   // GET /api/admin/activity
   if (method === 'GET' && path === '/api/admin/activity') return handleActivity(event)
+
+  // GET /api/admin/costs
+  if (method === 'GET' && path === '/api/admin/costs') return handleGetCosts()
 
   return r.badRequest(`Unsupported admin route: ${method} ${path}`)
 }
