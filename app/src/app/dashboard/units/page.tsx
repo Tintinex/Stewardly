@@ -998,7 +998,7 @@ export default function UnitsPage() {
     try {
       const result = await refreshUnitEstimate(unit.id)
       if (result.notConfigured) {
-        setEstimateNote('Rentcast API key not configured. Sign up free at rentcast.io and add the key to your environment.')
+        setEstimateNote('Rentcast API key not configured. Sign up free at rentcast.io to fetch estimated sale prices (not rent — this uses the property value AVM).')
       } else if (result.notFound) {
         setEstimateNote(`No estimate found for Unit ${unit.unitNumber}. The address may not be in Rentcast's database.`)
       } else if (result.zestimate) {
@@ -1027,7 +1027,7 @@ export default function UnitsPage() {
       try {
         const result = await refreshUnitEstimate(unit.id)
         if (result.notConfigured) {
-          setEstimateNote('Rentcast API key not configured. Sign up free at rentcast.io.')
+          setEstimateNote('Rentcast API key not configured. Sign up free at rentcast.io to fetch estimated sale prices.')
           break
         }
         if (result.zestimate) {
@@ -1195,9 +1195,12 @@ export default function UnitsPage() {
                       Beds / Baths
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                      <span className="flex items-center gap-1">
+                      <span
+                        className="flex items-center gap-1 cursor-help"
+                        title="Estimated market sale price from Rentcast AVM — not a rental estimate"
+                      >
                         <TrendingUp size={13} className="text-emerald-500" />
-                        Est. Value
+                        Est. Sale Price
                       </span>
                     </th>
                     <th className="px-4 py-3" />
@@ -1240,7 +1243,7 @@ export default function UnitsPage() {
                           : <span className="text-gray-300 italic text-xs">—</span>}
                       </td>
 
-                      {/* Estimated value */}
+                      {/* Estimated sale price */}
                       <td className="px-4 py-3 whitespace-nowrap">
                         {unit.zestimate ? (
                           <div>
@@ -1253,8 +1256,11 @@ export default function UnitsPage() {
                               </p>
                             )}
                             {unit.zestimateAt && (
-                              <p className="text-[10px] text-gray-300" title={unit.zestimateAt}>
-                                {new Date(unit.zestimateAt).toLocaleDateString()}
+                              <p
+                                className="text-[10px] text-gray-300"
+                                title={`Sale price estimate · ${unit.zestimateAt}`}
+                              >
+                                Sale est. · {new Date(unit.zestimateAt).toLocaleDateString()}
                               </p>
                             )}
                           </div>
@@ -1267,7 +1273,7 @@ export default function UnitsPage() {
                             {estimating === unit.id
                               ? <Loader2 size={12} className="animate-spin" />
                               : <TrendingUp size={12} />}
-                            Get estimate
+                            Get sale price
                           </button>
                         )}
                       </td>
@@ -1348,7 +1354,7 @@ export default function UnitsPage() {
                 accent: false,
               },
               {
-                label: 'Portfolio Value',
+                label: 'Est. Portfolio Value',
                 value: (() => {
                   const withEst = units.filter(u => u.zestimate != null)
                   if (!withEst.length) return '—'
@@ -1365,7 +1371,7 @@ export default function UnitsPage() {
                 <p className={`text-2xl font-bold mt-0.5 ${stat.accent ? 'text-emerald-700' : 'text-gray-900'}`}>{stat.value}</p>
                 {stat.accent && units.filter(u => u.zestimate).length > 0 && (
                   <p className="text-[10px] text-emerald-500 mt-0.5">
-                    {units.filter(u => u.zestimate).length} of {units.length} units · Rentcast AVM
+                    {units.filter(u => u.zestimate).length} of {units.length} units · Sale price AVM
                   </p>
                 )}
               </div>
