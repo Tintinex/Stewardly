@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useRef } from 'react'
+import Link from 'next/link'
 import { Bell, ChevronDown, LogOut, User, Camera, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Avatar } from '@/components/ui/Avatar'
@@ -195,13 +196,14 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
                   </div>
 
                   {/* Menu items */}
-                  <button
+                  <Link
+                    href="/dashboard/profile"
                     onClick={() => setDropdownOpen(false)}
                     className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                   >
                     <User className="h-4 w-4 text-gray-400" />
                     My Profile
-                  </button>
+                  </Link>
                   <button
                     onClick={() => {
                       setDropdownOpen(false)

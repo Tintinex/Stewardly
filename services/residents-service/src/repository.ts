@@ -18,9 +18,11 @@ export interface OwnerProfile {
   role: string
   unitId: string | null
   unitNumber: string | null
+  unitAddress: string | null
   avatarUrl: string | null   // pre-signed GET URL, regenerated each request
   hoaId: string
   hoaName: string
+  createdAt: string
 }
 
 /** Resolve the internal owners.id UUID from a Cognito sub + hoaId.
@@ -44,15 +46,19 @@ export async function getMyProfile(hoaId: string, cognitoSub: string): Promise<O
     role: string
     unitId: string | null
     unitNumber: string | null
+    unitAddress: string | null
     avatarKey: string | null
     hoaId: string
     hoaName: string
+    createdAt: string
   }>(
     `SELECT o.id, o.first_name AS "firstName", o.last_name AS "lastName",
             o.email, o.phone, o.role, o.unit_id AS "unitId",
             u.unit_number AS "unitNumber",
+            u.address AS "unitAddress",
             o.avatar_url AS "avatarKey",
-            o.hoa_id AS "hoaId", h.name AS "hoaName"
+            o.hoa_id AS "hoaId", h.name AS "hoaName",
+            o.created_at AS "createdAt"
      FROM owners o
      JOIN hoas h ON h.id = o.hoa_id
      LEFT JOIN units u ON u.id = o.unit_id
@@ -85,9 +91,11 @@ export async function getMyProfile(hoaId: string, cognitoSub: string): Promise<O
     role: row.role,
     unitId: row.unitId,
     unitNumber: row.unitNumber,
+    unitAddress: row.unitAddress,
     avatarUrl,
     hoaId: row.hoaId,
     hoaName: row.hoaName,
+    createdAt: row.createdAt,
   }
 }
 

@@ -406,6 +406,27 @@ export async function ensureOwner(payload: { firstName: string; lastName: string
   return apiFetch<AuthUser>('/api/residents/me', { method: 'POST', body: JSON.stringify(payload) })
 }
 
+export interface FullProfile {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string | null
+  role: string
+  unitId: string | null
+  unitNumber: string | null
+  unitAddress: string | null
+  hoaId: string
+  hoaName: string
+  avatarUrl: string | null
+  createdAt: string
+}
+
+/** Fetch the full profile including unit address and member-since date */
+export async function getMyFullProfile(): Promise<FullProfile> {
+  return apiFetch<FullProfile>('/api/residents/me')
+}
+
 /**
  * Get a presigned S3 PUT URL for uploading a new profile photo.
  * Returns { uploadUrl, avatarKey } — client PUTs the image file to uploadUrl,

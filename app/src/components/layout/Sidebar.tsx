@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, CheckSquare, Calendar, Users, BarChart2, MessageSquare,
-  Settings, LogOut, ShieldAlert, Home, Wrench, Megaphone, FileText, UserCheck, Building2, Package,
+  Settings, LogOut, ShieldAlert, Home, Wrench, Megaphone, FileText, UserCheck, Building2, Package, UserCircle,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAuth } from '@/contexts/AuthContext'
@@ -15,7 +15,8 @@ import { getMembers, getPendingPackageCount } from '@/lib/api'
 // ── Navigation config ─────────────────────────────────────────────────────────
 
 const COMMON_ITEMS = [
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+  { href: '/dashboard/profile',  label: 'My Profile', icon: UserCircle },
+  { href: '/dashboard/settings', label: 'Settings',   icon: Settings },
 ]
 
 const BOARD_ITEMS = [
@@ -200,23 +201,30 @@ export function Sidebar({ onClose }: SidebarProps) {
       {user && (
         <div className="border-t border-white/10 p-3">
           <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-            <Avatar
-              name={`${user.firstName} ${user.lastName}`.trim() || user.email}
-              src={user.avatarUrl}
-              size="sm"
-            />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-white">
-                {`${user.firstName} ${user.lastName}`.trim() || user.email}
-              </p>
-              <p className="truncate text-xs text-white/50 capitalize">
-                {user.role.replace(/_/g, ' ')}
-              </p>
-            </div>
+            <Link
+              href="/dashboard/profile"
+              onClick={onClose}
+              className="flex items-center gap-3 min-w-0 flex-1 group"
+              title="View my profile"
+            >
+              <Avatar
+                name={`${user.firstName} ${user.lastName}`.trim() || user.email}
+                src={user.avatarUrl}
+                size="sm"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-white group-hover:text-teal transition-colors">
+                  {`${user.firstName} ${user.lastName}`.trim() || user.email}
+                </p>
+                <p className="truncate text-xs text-white/50 capitalize">
+                  {user.role.replace(/_/g, ' ')}
+                </p>
+              </div>
+            </Link>
             <button
               onClick={handleSignOut}
               title="Sign out"
-              className="rounded p-1 text-white/50 hover:bg-white/10 hover:text-white transition-colors"
+              className="rounded p-1 text-white/50 hover:bg-white/10 hover:text-white transition-colors shrink-0"
             >
               <LogOut className="h-4 w-4" />
             </button>
