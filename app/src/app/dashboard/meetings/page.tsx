@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react'
 import { Plus, Calendar, MapPin, ChevronDown, FileText, CheckSquare } from 'lucide-react'
-import { format, parseISO, isFuture } from 'date-fns'
+import { format, parseISO, isFuture, isPast } from 'date-fns'
 import { useAuth } from '@/contexts/AuthContext'
 import * as api from '@/lib/api'
 import { Button } from '@/components/ui/Button'
@@ -43,8 +43,15 @@ export default function MeetingsPage() {
     loadMeetings().finally(() => setIsLoading(false))
   }, [authLoading, loadMeetings])
 
-  const upcoming = meetings.filter(m => m.status === 'scheduled' || isFuture(parseISO(m.scheduledAt)))
-  const past = meetings.filter(m => m.status === 'completed' || m.status === 'cancelled')
+  // A meeting belongs in "past" if its date has already passed OR it's completed/cancelled.
+  // "Upcoming" is strictly: scheduled status AND the date is still in the future.
+  const upcoming = meetings
+    .filter(m => m.status === 'scheduled' && isFuture(parseISO(m.scheduledAt)))
+    .sort((a, b) => parseISO(a.scheduledAt).getTime() - parseISO(b.scheduledAt).getTime())
+
+  const past = meetings
+    .filter(m => isPast(parseISO(m.scheduledAt)) || m.status === 'completed' || m.status === 'cancelled')
+    .sort((a, b) => parseISO(b.scheduledAt).getTime() - parseISO(a.scheduledAt).getTime())
 
   const addAgendaItem = () => {
     setFormAgendaItems(prev => [...prev, { title: '', duration: '' }])
@@ -97,19 +104,25 @@ export default function MeetingsPage() {
     return <div className="flex h-64 items-center justify-center"><Spinner size="lg" /></div>
   }
 
-  const MeetingCard = ({ meeting }: { meeting: Meeting }) => {
+  const MeetingCard = ({ meeting, isPastMeeting = false }: { meeting: Meeting; isPastMeeting?: boolean }) => {
     const isExpanded = expandedId === meeting.id
     return (
       <div className={clsx(
-        'rounded-xl border bg-white shadow-sm transition-shadow',
-        isExpanded ? 'border-teal-200 shadow-md' : 'border-gray-200 hover:shadow-md',
+        'rounded-xl border shadow-sm transition-shadow',
+        isPastMeeting ? 'bg-gray-50 border-gray-100' : 'bg-white border-gray-200',
+        isExpanded
+          ? isPastMeeting ? 'shadow-sm' : 'border-teal-200 shadow-md'
+          : 'hover:shadow-md',
       )}>
         <div
           className="flex items-start gap-4 p-5 cursor-pointer"
           onClick={() => setExpandedId(id => id === meeting.id ? null : meeting.id)}
         >
           {/* Date badge */}
-          <div className="shrink-0 rounded-lg bg-navy px-3 py-2 text-center text-white min-w-[52px]">
+          <div className={clsx(
+            'shrink-0 rounded-lg px-3 py-2 text-center min-w-[52px]',
+            isPastMeeting ? 'bg-gray-300 text-gray-600' : 'bg-navy text-white',
+          )}>
             <p className="text-xs font-medium uppercase opacity-70">
               {format(parseISO(meeting.scheduledAt), 'MMM')}
             </p>
@@ -121,8 +134,14 @@ export default function MeetingsPage() {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <h3 className="font-semibold text-gray-900">{meeting.title}</h3>
-                <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                <h3 className={clsx(
+                  'font-semibold',
+                  isPastMeeting ? 'text-gray-400' : 'text-gray-900',
+                )}>{meeting.title}</h3>
+                <div className={clsx(
+                  'mt-1 flex flex-wrap items-center gap-3 text-sm',
+                  isPastMeeting ? 'text-gray-400' : 'text-gray-500',
+                )}>
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3.5 w-3.5" />
                     {format(parseISO(meeting.scheduledAt), 'EEEE, MMMM d · h:mm a')}
@@ -136,11 +155,12 @@ export default function MeetingsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant={meeting.status === 'completed' ? 'success' : meeting.status === 'cancelled' ? 'danger' : 'info'}>
-                  {meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1)}
+                <Badge variant={meeting.status === 'completed' ? 'success' : meeting.status === 'cancelled' ? 'danger' : isPastMeeting ? 'default' : 'info'}>
+                  {isPastMeeting && meeting.status === 'scheduled' ? 'Occurred' : meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1)}
                 </Badge>
                 <ChevronDown className={clsx(
-                  'h-4 w-4 text-gray-400 transition-transform',
+                  'h-4 w-4 transition-transform',
+                  isPastMeeting ? 'text-gray-300' : 'text-gray-400',
                   isExpanded && 'rotate-180',
                 )} />
               </div>
@@ -149,18 +169,30 @@ export default function MeetingsPage() {
         </div>
 
         {isExpanded && (
-          <div className="border-t border-gray-100 px-5 pb-5 pt-4 space-y-4">
+          <div className={clsx(
+            'border-t px-5 pb-5 pt-4 space-y-4',
+            isPastMeeting ? 'border-gray-100' : 'border-gray-100',
+          )}>
             {/* Agenda */}
             {meeting.agendaItems.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-1.5">
-                  <CheckSquare className="h-4 w-4 text-teal" />
+                <h4 className={clsx(
+                  'text-sm font-semibold mb-2 flex items-center gap-1.5',
+                  isPastMeeting ? 'text-gray-400' : 'text-gray-900',
+                )}>
+                  <CheckSquare className={clsx('h-4 w-4', isPastMeeting ? 'text-gray-400' : 'text-teal')} />
                   Agenda ({meeting.agendaItems.length} items)
                 </h4>
                 <ol className="space-y-1.5">
                   {meeting.agendaItems.map(item => (
-                    <li key={item.id} className="flex items-center gap-2 text-sm text-gray-600">
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-500">
+                    <li key={item.id} className={clsx(
+                      'flex items-center gap-2 text-sm',
+                      isPastMeeting ? 'text-gray-400' : 'text-gray-600',
+                    )}>
+                      <span className={clsx(
+                        'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-medium',
+                        isPastMeeting ? 'bg-gray-100 text-gray-400' : 'bg-gray-100 text-gray-500',
+                      )}>
                         {item.order}
                       </span>
                       <span className="flex-1">{item.title}</span>
@@ -176,15 +208,18 @@ export default function MeetingsPage() {
             {/* Minutes */}
             {meeting.minutes ? (
               <div>
-                <h4 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-1.5">
-                  <FileText className="h-4 w-4 text-teal" />
+                <h4 className={clsx(
+                  'text-sm font-semibold mb-2 flex items-center gap-1.5',
+                  isPastMeeting ? 'text-gray-400' : 'text-gray-900',
+                )}>
+                  <FileText className={clsx('h-4 w-4', isPastMeeting ? 'text-gray-400' : 'text-teal')} />
                   Meeting Minutes
                 </h4>
-                <pre className="whitespace-pre-wrap rounded-lg bg-gray-50 border border-gray-200 p-4 text-xs text-gray-700 font-sans leading-relaxed max-h-64 overflow-y-auto">
+                <pre className="whitespace-pre-wrap rounded-lg bg-gray-100 border border-gray-200 p-4 text-xs text-gray-500 font-sans leading-relaxed max-h-64 overflow-y-auto">
                   {meeting.minutes}
                 </pre>
               </div>
-            ) : meeting.status === 'completed' ? (
+            ) : (meeting.status === 'completed' || isPastMeeting) ? (
               <div className="rounded-lg border border-dashed border-gray-200 p-4 text-center">
                 <p className="text-sm text-gray-400">No minutes recorded for this meeting.</p>
               </div>
@@ -223,7 +258,7 @@ export default function MeetingsPage() {
           />
         ) : (
           <div className="space-y-3">
-            {upcoming.map(m => <MeetingCard key={m.id} meeting={m} />)}
+            {upcoming.map(m => <MeetingCard key={m.id} meeting={m} isPastMeeting={false} />)}
           </div>
         )}
       </section>
@@ -235,7 +270,7 @@ export default function MeetingsPage() {
             Past Meetings
           </h2>
           <div className="space-y-3">
-            {past.map(m => <MeetingCard key={m.id} meeting={m} />)}
+            {past.map(m => <MeetingCard key={m.id} meeting={m} isPastMeeting={true} />)}
           </div>
         </section>
       )}
