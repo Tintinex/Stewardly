@@ -857,7 +857,7 @@ export async function getHoaInviteCode(hoaId: string): Promise<InviteCodeRecord 
 
 export async function rotateHoaInviteCode(input: {
   hoaId: string
-  createdBy: string
+  createdBy: string   // Cognito sub — resolved to owners.id below
   maxUses: number | null
   expiresAt: string | null
 }): Promise<InviteCodeRecord> {
@@ -866,6 +866,14 @@ export async function rotateHoaInviteCode(input: {
     'UPDATE invite_codes SET is_active = false WHERE hoa_id = :hoaId AND is_active = true',
     [param.string('hoaId', input.hoaId)],
   )
+
+  // The authorizer passes the Cognito sub as userId, but invite_codes.created_by
+  // is a FK on owners.id (a separate DB-generated UUID). Resolve it first.
+  const ownerRow = await queryOne<{ id: string }>(
+    'SELECT id FROM owners WHERE cognito_sub = :sub AND hoa_id = :hoaId LIMIT 1',
+    [param.string('sub', input.createdBy), param.string('hoaId', input.hoaId)],
+  )
+  const ownerDbId = ownerRow?.id ?? null   // null is fine — column is nullable
 
   const code = Array.from({ length: 8 }, () =>
     'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'[Math.floor(Math.random() * 34)],
@@ -878,7 +886,7 @@ export async function rotateHoaInviteCode(input: {
     [
       param.string('hoaId', input.hoaId),
       param.string('code', code),
-      param.string('createdBy', input.createdBy),
+      param.stringOrNull('createdBy', ownerDbId),
       param.stringOrNull('maxUses', input.maxUses != null ? String(input.maxUses) : null),
       param.stringOrNull('expiresAt', input.expiresAt),
     ],
