@@ -56,6 +56,8 @@ function mapCategory(service: string): string {
 const ANTHROPIC_COST_PER_DOC_USD = 0.015   // ~$0.015 per doc processed (~1k tokens)
 // Plaid pricing — Development tier: $0.30/connected item/month
 const PLAID_COST_PER_ITEM_USD = 0.30
+// Rentcast AVM pricing — pay-per-call on the API plan (~$0.10/AVM value call)
+const RENTCAST_COST_PER_CALL_USD = 0.10
 
 /**
  * GET /api/admin/costs
@@ -83,8 +85,9 @@ export async function handleGetCosts(): Promise<r.ApiResponse> {
   const awsTotal = awsItems.reduce((s, i) => s + i.amountUsd, 0)
 
   // ── External API cost estimates ───────────────────────────────────────────
-  const anthropicCost = Math.round(usageMetrics.docsProcessedThisMonth * ANTHROPIC_COST_PER_DOC_USD * 100) / 100
-  const plaidCost     = Math.round(usageMetrics.plaidItemCount * PLAID_COST_PER_ITEM_USD * 100) / 100
+  const anthropicCost  = Math.round(usageMetrics.docsProcessedThisMonth * ANTHROPIC_COST_PER_DOC_USD * 100) / 100
+  const plaidCost      = Math.round(usageMetrics.plaidItemCount * PLAID_COST_PER_ITEM_USD * 100) / 100
+  const rentcastCost   = Math.round(usageMetrics.rentcastCallsThisMonth * RENTCAST_COST_PER_CALL_USD * 100) / 100
 
   const externalItems: CostLineItem[] = [
     {
@@ -93,6 +96,13 @@ export async function handleGetCosts(): Promise<r.ApiResponse> {
       amountUsd: anthropicCost,
       source:    'estimated',
       note:      `${usageMetrics.docsProcessedThisMonth} docs × $${ANTHROPIC_COST_PER_DOC_USD}/doc this month`,
+    },
+    {
+      name:      'Rentcast AVM',
+      category:  'External APIs',
+      amountUsd: rentcastCost,
+      source:    'estimated',
+      note:      `${usageMetrics.rentcastCallsThisMonth} estimate refresh${usageMetrics.rentcastCallsThisMonth !== 1 ? 'es' : ''} this month × $${RENTCAST_COST_PER_CALL_USD}/call`,
     },
     {
       name:      'Plaid (bank connectivity)',
@@ -153,12 +163,13 @@ export async function handleGetCosts(): Promise<r.ApiResponse> {
 interface UsageMetrics {
   docsProcessedThisMonth: number
   plaidItemCount: number
+  rentcastCallsThisMonth: number
   activeHoas: number
   totalUsers: number
 }
 
 async function getUsageMetrics(): Promise<UsageMetrics> {
-  const [docsRow, plaidRow, hoasRow, usersRow] = await Promise.all([
+  const [docsRow, plaidRow, rentcastRow, hoasRow, usersRow] = await Promise.all([
     // Documents processed (created) this calendar month as a proxy for AI usage
     queryOne<{ count: number }>(`
       SELECT COUNT(*)::int AS count FROM documents
@@ -169,6 +180,11 @@ async function getUsageMetrics(): Promise<UsageMetrics> {
     queryOne<{ count: number }>(`
       SELECT COUNT(*)::int AS count FROM plaid_items
       WHERE status = 'active'
+    `).catch(() => ({ count: 0 })),
+    // Rentcast AVM calls: units whose estimate was refreshed this calendar month
+    queryOne<{ count: number }>(`
+      SELECT COUNT(*)::int AS count FROM units
+      WHERE zestimate_at >= DATE_TRUNC('month', NOW())
     `).catch(() => ({ count: 0 })),
     // Active HOAs (paying or trialing)
     queryOne<{ count: number }>(`
@@ -182,6 +198,7 @@ async function getUsageMetrics(): Promise<UsageMetrics> {
   return {
     docsProcessedThisMonth: docsRow?.count ?? 0,
     plaidItemCount:         (plaidRow as { count: number } | null)?.count ?? 0,
+    rentcastCallsThisMonth: (rentcastRow as { count: number } | null)?.count ?? 0,
     activeHoas:             hoasRow?.count ?? 0,
     totalUsers:             usersRow?.count ?? 0,
   }
