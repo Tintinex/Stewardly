@@ -1,5 +1,5 @@
 import * as r from '../../../shared/response'
-import { updateMemberStatus, logMembershipEvent, logActivity } from '../repository'
+import { updateMemberStatus, logMembershipEvent, logActivity, getOwnerIdByCognitoSub } from '../repository'
 
 const EVENT_TYPE_MAP: Record<string, 'approved' | 'rejected' | 'suspended' | 'reinstated'> = {
   active: 'approved',
@@ -30,12 +30,15 @@ export async function handleUpdateMemberStatus(
   const member = await updateMemberStatus(hoaId, memberId, status as 'active' | 'suspended')
   if (!member) return r.notFound('Member')
 
+  // actorId is the Cognito sub; membership_events.performed_by is a FK on owners.id
+  const actorDbId = await getOwnerIdByCognitoSub(hoaId, actorId)
+
   const eventType = EVENT_TYPE_MAP[status] ?? 'approved'
   await logMembershipEvent({
     hoaId,
     ownerId: memberId,
     eventType,
-    performedBy: actorId,
+    performedBy: actorDbId,   // resolved owners.id (null if lookup misses — column is nullable)
     notes: notes ?? null,
   })
 
