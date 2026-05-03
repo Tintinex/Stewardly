@@ -16,8 +16,20 @@ async function getRentcastKey(): Promise<string | null> {
   try {
     const sm = new SecretsManagerClient({ region: process.env.AWS_REGION ?? 'us-east-1' })
     const res = await sm.send(new GetSecretValueCommand({ SecretId: secretArn }))
-    const value = res.SecretString?.trim()
-    _rentcastKey = (!value || value === 'REPLACE_ME') ? null : value
+    const raw = res.SecretString?.trim()
+    if (!raw || raw === 'REPLACE_ME') { _rentcastKey = null; return null }
+
+    // Secret may be a plain API key string, or a JSON object — handle both
+    let value = raw
+    if (raw.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(raw) as Record<string, string>
+        // Accept first string value found in the object
+        value = Object.values(parsed).find(v => typeof v === 'string' && v.length > 10) ?? ''
+      } catch { /* use raw as-is */ }
+    }
+
+    _rentcastKey = value || null
     return _rentcastKey
   } catch (err) {
     console.error('[units] Failed to load Rentcast key:', err)
